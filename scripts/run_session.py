@@ -44,6 +44,7 @@ from core.decision_report_utils import (  # noqa: E402
     write_strategy_route_switch_report as write_strategy_route_switch_report_impl,
     write_timeout_no_evidence_gate_report as write_timeout_no_evidence_gate_report_impl,
 )
+from core.session_plan_config import load_session_plan_config  # noqa: E402
 from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
 from core.stage_flow_utils import (  # noqa: E402
     ensure_counter_progress as ensure_counter_progress_impl,
@@ -5006,18 +5007,19 @@ def main() -> int:
     if "allow_remote_exp" in state_features:
         allow_remote_exp = bool(state_features.get("allow_remote_exp"))
 
-    stage_order = automation.get("stage_order", ["recon", "ida_slice", "gdb_evidence", "exploit_l3", "exploit_l4"])
-    if not isinstance(stage_order, list):
-        stage_order = ["recon", "ida_slice", "gdb_evidence", "exploit_l3", "exploit_l4"]
-    stage_order = [str(x) for x in stage_order]
-
-    if not enable_exploit:
-        stage_order = [x for x in stage_order if exploit_stage_level(x) < 0]
-
-    terminal_stage = terminal_exploit_stage(stage_order) if enable_exploit else ""
-    force_terminal_stage = bool(force_terminal_cfg and terminal_stage)
-    if force_terminal_stage:
-        stage_order = ensure_terminal_stage_last(stage_order, terminal_stage)
+    session_plan_cfg = load_session_plan_config(
+        automation=automation,
+        unified_cfg=unified_cfg,
+        enable_exploit=enable_exploit,
+        force_terminal_cfg=force_terminal_cfg,
+        args_max_loops=args.max_loops,
+        exploit_stage_level_fn=exploit_stage_level,
+        terminal_exploit_stage_fn=terminal_exploit_stage,
+        ensure_terminal_stage_last_fn=ensure_terminal_stage_last,
+    )
+    stage_order = list(session_plan_cfg.stage_order)
+    terminal_stage = session_plan_cfg.terminal_stage
+    force_terminal_stage = session_plan_cfg.force_terminal_stage
 
     if not stage_order:
         print("[run_session] no stage to run")
@@ -5109,14 +5111,12 @@ def main() -> int:
             clear_stop_request(ROOT_DIR, sid)
             notes.append("启动时清理历史 stop 请求")
 
-    unified_enabled = bool(unified_cfg.get("enabled", True))
-    unified_loops = int(unified_cfg.get("max_loops", 1) or 1)
+    unified_enabled = session_plan_cfg.unified_enabled
+    unified_loops = session_plan_cfg.unified_loops
     if unified_enabled:
         # 统一解题模式：固定顺序跑到底，避免分阶段策略抖动导致未进入 exploit。
         decision_cfg["enable_adaptive_stage_order"] = False
-    max_loops = args.max_loops if args.max_loops > 0 else int(automation.get("default_max_loops", 1) or 1)
-    if unified_enabled and args.max_loops <= 0:
-        max_loops = max(1, unified_loops)
+    max_loops = session_plan_cfg.max_loops
     run_validate = (not args.skip_validate) and bool(automation.get("run_validate_state_before_each_stage", True))
     run_verifier = (not args.skip_verifier) and bool(automation.get("run_verifier_after_each_stage", True))
     stop_on_stage_failure = bool(automation.get("stop_on_stage_failure", True)) and (not args.continue_on_failure)
