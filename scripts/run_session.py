@@ -38,6 +38,11 @@ from core.objective_engine import evaluate_objectives, write_objective_report  #
 from core.plugins import generate_exp_stub  # noqa: E402
 from core.recovery_engine import classify_failure, next_backoff_seconds, should_retry  # noqa: E402
 from core.session_control import acquire_run_lock, clear_stop_request, read_stop_request, release_run_lock  # noqa: E402
+from core.decision_report_utils import (  # noqa: E402
+    write_hint_request_gate_report as write_hint_request_gate_report_impl,
+    write_strategy_route_switch_report as write_strategy_route_switch_report_impl,
+    write_timeout_no_evidence_gate_report as write_timeout_no_evidence_gate_report_impl,
+)
 from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
 from core.stage_flow_utils import (  # noqa: E402
     ensure_counter_progress as ensure_counter_progress_impl,
@@ -1800,25 +1805,19 @@ def write_strategy_route_switch_report(
     reason: str,
     recommend_hint: bool,
 ) -> str:
-    rel = f"artifacts/reports/strategy_route_switch_{session_id}_{loop_idx:02d}.json"
-    out = os.path.join(ROOT_DIR, rel)
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    doc = {
-        "generated_utc": utc_now(),
-        "session_id": session_id,
-        "loop": int(loop_idx),
-        "current_hint": str(current_hint or ""),
-        "current_strategy": str(current_strategy or ""),
-        "next_hint": str(next_hint or ""),
-        "cycle": [str(x).strip() for x in cycle if str(x).strip()],
-        "no_progress_loops": int(no_progress_loops),
-        "terminal_unsolved_streak": int(terminal_unsolved_streak),
-        "reason": str(reason or "").strip(),
-        "recommend_external_hint": bool(recommend_hint),
-    }
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(doc, f, ensure_ascii=False, indent=2)
-    return rel
+    return write_strategy_route_switch_report_impl(
+        root_dir=ROOT_DIR,
+        session_id=session_id,
+        loop_idx=loop_idx,
+        current_hint=current_hint,
+        current_strategy=current_strategy,
+        next_hint=next_hint,
+        cycle=cycle,
+        no_progress_loops=no_progress_loops,
+        terminal_unsolved_streak=terminal_unsolved_streak,
+        reason=reason,
+        recommend_hint=recommend_hint,
+    )
 
 
 def write_hint_request_gate_report(
@@ -1829,21 +1828,14 @@ def write_hint_request_gate_report(
     no_new_evidence_sec: float,
     reasons: List[str],
 ) -> str:
-    rel = f"artifacts/reports/hint_gate_{session_id}_{loop_idx:02d}.json"
-    out = os.path.join(ROOT_DIR, rel)
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    doc = {
-        "generated_utc": utc_now(),
-        "session_id": session_id,
-        "loop": int(loop_idx),
-        "no_progress_loops": int(no_progress_loops),
-        "no_new_evidence_sec": round(max(0.0, float(no_new_evidence_sec or 0.0)), 3),
-        "reasons": [str(x).strip() for x in reasons if str(x).strip()],
-        "recommend_external_hint": True,
-    }
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(doc, f, ensure_ascii=False, indent=2)
-    return rel
+    return write_hint_request_gate_report_impl(
+        root_dir=ROOT_DIR,
+        session_id=session_id,
+        loop_idx=loop_idx,
+        no_progress_loops=no_progress_loops,
+        no_new_evidence_sec=no_new_evidence_sec,
+        reasons=reasons,
+    )
 
 
 def write_timeout_no_evidence_gate_report(
@@ -1858,24 +1850,18 @@ def write_timeout_no_evidence_gate_report(
     blind_mode: bool,
     reason: str,
 ) -> str:
-    rel = f"artifacts/reports/timeout_no_evidence_gate_{session_id}_{loop_idx:02d}.json"
-    out = os.path.join(ROOT_DIR, rel)
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    doc = {
-        "generated_utc": utc_now(),
-        "session_id": session_id,
-        "loop": int(loop_idx),
-        "blind_mode": bool(blind_mode),
-        "threshold_consecutive_timeout_loops": int(consecutive_timeout_loops),
-        "timeout_streak": int(timeout_streak),
-        "rc124_failures_in_loop": int(rc124_failures_in_loop),
-        "no_progress_loops": int(no_progress_loops),
-        "no_new_evidence_sec": round(max(0.0, float(no_new_evidence_sec or 0.0)), 3),
-        "reason": str(reason or "").strip(),
-    }
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(doc, f, ensure_ascii=False, indent=2)
-    return rel
+    return write_timeout_no_evidence_gate_report_impl(
+        root_dir=ROOT_DIR,
+        session_id=session_id,
+        loop_idx=loop_idx,
+        consecutive_timeout_loops=consecutive_timeout_loops,
+        timeout_streak=timeout_streak,
+        rc124_failures_in_loop=rc124_failures_in_loop,
+        no_progress_loops=no_progress_loops,
+        no_new_evidence_sec=no_new_evidence_sec,
+        blind_mode=blind_mode,
+        reason=reason,
+    )
 
 
 def _extract_remote_target(state: Dict[str, Any]) -> Tuple[str, int]:
