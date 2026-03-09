@@ -46,6 +46,7 @@ from core.stage_flow_utils import (  # noqa: E402
     stage_counter_key as stage_counter_key_impl,
     terminal_exploit_stage as terminal_exploit_stage_impl,
 )
+from core.stage_plan_utils import detect_bundle_plan as detect_bundle_plan_impl  # noqa: E402
 from core.stage_prompt_builder import build_stage_prompt as build_stage_prompt_impl  # noqa: E402
 from core.stage_runner import get_stage_spec, register_stage_receipt, stage_prompt_contract, write_stage_receipt  # noqa: E402
 from core.stage_contracts import validate_stage_contract  # noqa: E402
@@ -137,22 +138,13 @@ def detect_bundle_plan(
     include_exploit_stages: bool,
     require_consecutive: bool = True,
 ) -> Tuple[bool, str, List[str]]:
-    if not enabled:
-        return False, "", []
-    core = ["recon", "ida_slice", "gdb_evidence"]
-    present = [s for s in core if s in stages]
-    if len(present) < 3:
-        return False, "", []
-    ordered = [s for s in stages if s in core]
-    if include_exploit_stages:
-        ordered.extend([s for s in stages if exploit_stage_level(s) >= 0])
-    ordered = list(dict.fromkeys(ordered))
-    if require_consecutive:
-        idx = [stages.index(s) for s in core]
-        if not (idx[0] < idx[1] < idx[2]):
-            return False, "", []
-    trigger = ordered[0] if ordered else ""
-    return bool(trigger), trigger, ordered
+    return detect_bundle_plan_impl(
+        stages,
+        enabled=enabled,
+        include_exploit_stages=include_exploit_stages,
+        exploit_stage_level_fn=exploit_stage_level,
+        require_consecutive=require_consecutive,
+    )
 
 
 def load_json(path: str) -> Dict[str, Any]:
