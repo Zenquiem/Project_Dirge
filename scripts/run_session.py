@@ -38,6 +38,7 @@ from core.objective_engine import evaluate_objectives, write_objective_report  #
 from core.plugins import generate_exp_stub  # noqa: E402
 from core.recovery_engine import classify_failure, next_backoff_seconds, should_retry  # noqa: E402
 from core.session_control import acquire_run_lock, clear_stop_request, read_stop_request, release_run_lock  # noqa: E402
+from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
 from core.stage_runner import get_stage_spec, register_stage_receipt, stage_prompt_contract, write_stage_receipt  # noqa: E402
 from core.stage_contracts import validate_stage_contract  # noqa: E402
 from core.text_utils import compact_text, session_tag, truthy_flag  # noqa: E402
@@ -3324,28 +3325,11 @@ def ensure_exploit_artifact_links(state_path: str, session_id: str, loop_idx: in
 
 
 def _parse_any_int(v: Any) -> int:
-    if isinstance(v, int):
-        return int(v)
-    s = str(v or "").strip().lower()
-    if not s:
-        return 0
-    try:
-        return int(s, 16) if s.startswith("0x") else int(s, 10)
-    except Exception:
-        return 0
+    return parse_any_int(v)
 
 
 def _latest_file_by_patterns(patterns: List[str]) -> str:
-    cands: List[str] = []
-    for pat in patterns:
-        if not pat:
-            continue
-        cands.extend(glob.glob(os.path.join(ROOT_DIR, pat)))
-    cands = [p for p in cands if os.path.isfile(p)]
-    if not cands:
-        return ""
-    cands.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-    return repo_rel(cands[0])
+    return latest_file_by_patterns(patterns, root_dir=ROOT_DIR, repo_rel_fn=repo_rel)
 
 
 def normalize_latest_artifact_keys(
