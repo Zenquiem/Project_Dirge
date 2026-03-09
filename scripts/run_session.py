@@ -38,6 +38,7 @@ from core.objective_engine import evaluate_objectives, write_objective_report  #
 from core.plugins import generate_exp_stub  # noqa: E402
 from core.recovery_engine import classify_failure, next_backoff_seconds, should_retry  # noqa: E402
 from core.session_control import acquire_run_lock, clear_stop_request, read_stop_request, release_run_lock  # noqa: E402
+from core.decision_config import load_decision_runtime_config  # noqa: E402
 from core.decision_report_utils import (  # noqa: E402
     write_hint_request_gate_report as write_hint_request_gate_report_impl,
     write_strategy_route_switch_report as write_strategy_route_switch_report_impl,
@@ -5302,71 +5303,37 @@ def main() -> int:
         1,
         int(exploit_precheck_cfg.get("force_minimal_rewrite_after_weak_streak", 2) or 2),
     )
-    strategy_route_cfg = (
-        decision_cfg.get("strategy_route_switch", {})
-        if isinstance(decision_cfg.get("strategy_route_switch", {}), dict)
-        else {}
-    )
-    strategy_route_switch_enabled = bool(strategy_route_cfg.get("enabled", True))
-    strategy_route_switch_no_progress_loops = max(
-        1, int(strategy_route_cfg.get("no_progress_loops", 1) or 1)
-    )
-    strategy_route_switch_terminal_unsolved_loops = max(
-        1, int(strategy_route_cfg.get("terminal_unsolved_streak", 1) or 1)
-    )
-    strategy_route_switch_weak_only = bool(strategy_route_cfg.get("only_when_weak_strategy", False))
-    strategy_route_switch_reset_no_progress = bool(
-        strategy_route_cfg.get("reset_no_progress_after_switch", True)
-    )
-    strategy_route_switch_request_hint_after = max(
-        0, int(strategy_route_cfg.get("request_hint_after_switches", 0) or 0)
-    )
-    strategy_route_switch_write_report = bool(strategy_route_cfg.get("write_report", True))
-    strategy_route_switch_cycle = _normalize_strategy_hint_cycle(
-        strategy_route_cfg.get("cycle", []),
+    decision_runtime_cfg = load_decision_runtime_config(
+        decision_cfg,
+        normalize_strategy_hint_fn=_normalize_strategy_hint,
+        normalize_strategy_hint_cycle_fn=_normalize_strategy_hint_cycle,
         state=state,
     )
-    hint_gate_cfg = (
-        decision_cfg.get("hint_request_gate", {})
-        if isinstance(decision_cfg.get("hint_request_gate", {}), dict)
-        else {}
-    )
-    hint_gate_enabled = bool(hint_gate_cfg.get("enabled", True))
-    hint_gate_no_progress_loops = max(0, int(hint_gate_cfg.get("no_progress_loops", 2) or 2))
-    hint_gate_no_new_evidence_sec = max(
-        0.0,
-        float(hint_gate_cfg.get("no_new_evidence_minutes", 30.0) or 30.0) * 60.0,
-    )
-    hint_gate_write_report = bool(hint_gate_cfg.get("write_report", True))
-    hint_gate_stop_on_trigger = bool(hint_gate_cfg.get("stop_on_trigger", False))
-    blind_mode_cfg = (
-        decision_cfg.get("blind_mode", {})
-        if isinstance(decision_cfg.get("blind_mode", {}), dict)
-        else {}
-    )
-    blind_mode_enabled = bool(blind_mode_cfg.get("enabled", True))
-    blind_mode_skip_static_stages = bool(blind_mode_cfg.get("skip_static_stages", True))
-    blind_mode_skip_mcp_health_check = bool(blind_mode_cfg.get("skip_mcp_health_check", True))
-    blind_mode_prefer_protocol_semantic_probe = bool(
-        blind_mode_cfg.get("prefer_protocol_semantic_probe", True)
-    )
-    blind_mode_default_strategy_hint = _normalize_strategy_hint(
-        blind_mode_cfg.get("default_strategy_hint", "js_shell_cmd_exec")
-    ) or "js_shell_cmd_exec"
-    blind_mode_route_switch_lock = bool(blind_mode_cfg.get("route_switch_lock", True))
-    timeout_gate_cfg = (
-        decision_cfg.get("timeout_no_evidence_gate", {})
-        if isinstance(decision_cfg.get("timeout_no_evidence_gate", {}), dict)
-        else {}
-    )
-    timeout_gate_enabled = bool(timeout_gate_cfg.get("enabled", True))
-    timeout_gate_consecutive_loops = max(
-        1, int(timeout_gate_cfg.get("consecutive_timeout_loops", 2) or 2)
-    )
-    timeout_gate_require_no_progress = bool(timeout_gate_cfg.get("require_no_progress", True))
-    timeout_gate_blind_only = bool(timeout_gate_cfg.get("blind_mode_only", True))
-    timeout_gate_write_report = bool(timeout_gate_cfg.get("write_report", True))
-    timeout_gate_stop_on_trigger = bool(timeout_gate_cfg.get("stop_on_trigger", True))
+    strategy_route_switch_enabled = decision_runtime_cfg.strategy_route_switch.enabled
+    strategy_route_switch_no_progress_loops = decision_runtime_cfg.strategy_route_switch.no_progress_loops
+    strategy_route_switch_terminal_unsolved_loops = decision_runtime_cfg.strategy_route_switch.terminal_unsolved_loops
+    strategy_route_switch_weak_only = decision_runtime_cfg.strategy_route_switch.weak_only
+    strategy_route_switch_reset_no_progress = decision_runtime_cfg.strategy_route_switch.reset_no_progress
+    strategy_route_switch_request_hint_after = decision_runtime_cfg.strategy_route_switch.request_hint_after
+    strategy_route_switch_write_report = decision_runtime_cfg.strategy_route_switch.write_report
+    strategy_route_switch_cycle = list(decision_runtime_cfg.strategy_route_switch.cycle)
+    hint_gate_enabled = decision_runtime_cfg.hint_gate.enabled
+    hint_gate_no_progress_loops = decision_runtime_cfg.hint_gate.no_progress_loops
+    hint_gate_no_new_evidence_sec = decision_runtime_cfg.hint_gate.no_new_evidence_sec
+    hint_gate_write_report = decision_runtime_cfg.hint_gate.write_report
+    hint_gate_stop_on_trigger = decision_runtime_cfg.hint_gate.stop_on_trigger
+    blind_mode_enabled = decision_runtime_cfg.blind_mode.enabled
+    blind_mode_skip_static_stages = decision_runtime_cfg.blind_mode.skip_static_stages
+    blind_mode_skip_mcp_health_check = decision_runtime_cfg.blind_mode.skip_mcp_health_check
+    blind_mode_prefer_protocol_semantic_probe = decision_runtime_cfg.blind_mode.prefer_protocol_semantic_probe
+    blind_mode_default_strategy_hint = decision_runtime_cfg.blind_mode.default_strategy_hint
+    blind_mode_route_switch_lock = decision_runtime_cfg.blind_mode.route_switch_lock
+    timeout_gate_enabled = decision_runtime_cfg.timeout_gate.enabled
+    timeout_gate_consecutive_loops = decision_runtime_cfg.timeout_gate.consecutive_loops
+    timeout_gate_require_no_progress = decision_runtime_cfg.timeout_gate.require_no_progress
+    timeout_gate_blind_only = decision_runtime_cfg.timeout_gate.blind_only
+    timeout_gate_write_report = decision_runtime_cfg.timeout_gate.write_report
+    timeout_gate_stop_on_trigger = decision_runtime_cfg.timeout_gate.stop_on_trigger
     remote_preflight_enabled = bool(remote_preflight_cfg.get("enabled", True))
     remote_preflight_check_on_start = bool(remote_preflight_cfg.get("check_on_start", True))
     if unified_enabled:
