@@ -44,6 +44,7 @@ from core.decision_report_utils import (  # noqa: E402
     write_strategy_route_switch_report as write_strategy_route_switch_report_impl,
     write_timeout_no_evidence_gate_report as write_timeout_no_evidence_gate_report_impl,
 )
+from core.remote_target_utils import extract_remote_target  # noqa: E402
 from core.session_plan_config import load_session_plan_config  # noqa: E402
 from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
 from core.stage_flow_utils import (  # noqa: E402
@@ -1867,27 +1868,7 @@ def write_timeout_no_evidence_gate_report(
 
 
 def _extract_remote_target(state: Dict[str, Any]) -> Tuple[str, int]:
-    sess = state.get("session", {}) if isinstance(state.get("session", {}), dict) else {}
-    remote = sess.get("remote", {}) if isinstance(sess.get("remote", {}), dict) else {}
-    target = remote.get("target", {}) if isinstance(remote.get("target", {}), dict) else {}
-    host = str(target.get("host", "")).strip()
-    port = int(target.get("port", 0) or 0)
-    if host and port > 0:
-        return host, port
-
-    challenge = state.get("challenge", {}) if isinstance(state.get("challenge", {}), dict) else {}
-    for key in ("remote", "target"):
-        obj = challenge.get(key, {}) if isinstance(challenge.get(key, {}), dict) else {}
-        h = str(obj.get("host", "")).strip()
-        p = int(obj.get("port", 0) or 0)
-        if h and p > 0:
-            return h, p
-
-    host = str(challenge.get("remote_host", "")).strip()
-    port = int(challenge.get("remote_port", 0) or 0)
-    if host and port > 0:
-        return host, port
-    return "", 0
+    return extract_remote_target(state)
 
 
 def run_remote_target_preflight(
