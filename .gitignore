@@ -22,3 +22,11 @@ sessions/*
 # Python
 __pycache__/
 *.pyc
+
+# OpenClaw / Codex runtime secrets & local runtime
+.codex_runtime/
+.codex_runtime_link/
+
+# Crash dumps / large transient binaries
+*.core
+*.core.*
