@@ -94,9 +94,13 @@ git rm --cached *.core || true
 
 ---
 
+## 工程结构补充
+
+- 架构说明：`docs/architecture.md`
+
 ## 下一步建议（工程化）
 
-1. 拆分 `scripts/run_session.py`（超大文件）为 orchestrator + runtime helpers。
+1. 继续拆分 `scripts/run_session.py`（超大文件）为 orchestrator + runtime helpers。
 2. 增加 `requirements-dev.txt` 或 `pyproject.toml` 统一开发依赖。
 3. 增加 CI：至少跑 `unittest` + 基础 lint。
 4. 给 `policy/*.yaml` 增加配置说明文档（默认值与风险说明）。
