@@ -39,6 +39,13 @@ from core.plugins import generate_exp_stub  # noqa: E402
 from core.recovery_engine import classify_failure, next_backoff_seconds, should_retry  # noqa: E402
 from core.session_control import acquire_run_lock, clear_stop_request, read_stop_request, release_run_lock  # noqa: E402
 from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
+from core.stage_flow_utils import (  # noqa: E402
+    ensure_counter_progress as ensure_counter_progress_impl,
+    ensure_terminal_stage_last as ensure_terminal_stage_last_impl,
+    exploit_stage_level as exploit_stage_level_impl,
+    stage_counter_key as stage_counter_key_impl,
+    terminal_exploit_stage as terminal_exploit_stage_impl,
+)
 from core.stage_runner import get_stage_spec, register_stage_receipt, stage_prompt_contract, write_stage_receipt  # noqa: E402
 from core.stage_contracts import validate_stage_contract  # noqa: E402
 from core.state_utils import get_path_value as get_state_path_value, validate_stage_runner_spec as validate_stage_runner_spec_impl  # noqa: E402
@@ -111,37 +118,15 @@ def utc_now() -> str:
 
 
 def exploit_stage_level(stage: str) -> int:
-    s = str(stage).strip().lower()
-    if not s.startswith("exploit_l"):
-        return -1
-    tail = s[len("exploit_l") :]
-    return int(tail) if tail.isdigit() else -1
+    return exploit_stage_level_impl(stage)
 
 
 def terminal_exploit_stage(stages: List[str]) -> str:
-    best = ""
-    best_lv = -1
-    for st in stages:
-        lv = exploit_stage_level(st)
-        if lv > best_lv:
-            best_lv = lv
-            best = st
-    return best if best_lv >= 0 else ""
+    return terminal_exploit_stage_impl(stages)
 
 
 def ensure_terminal_stage_last(stages: List[str], terminal_stage: str) -> List[str]:
-    if not terminal_stage:
-        return stages
-    out = [x for x in stages if x != terminal_stage]
-    out.append(terminal_stage)
-    dedup: List[str] = []
-    seen = set()
-    for x in out:
-        if x in seen:
-            continue
-        seen.add(x)
-        dedup.append(x)
-    return dedup
+    return ensure_terminal_stage_last_impl(stages, terminal_stage)
 
 
 def detect_bundle_plan(
@@ -3626,13 +3611,7 @@ def run_stage_mcp_gate(
 
 
 def stage_counter_key(stage: str) -> str:
-    if exploit_stage_level(stage) >= 0:
-        return "exploit_runs"
-    return {
-        "recon": "recon_runs",
-        "ida_slice": "ida_calls",
-        "gdb_evidence": "gdb_runs",
-    }.get(stage, "")
+    return stage_counter_key_impl(stage)
 
 
 def get_path_value(data: Dict[str, Any], path: str) -> Tuple[bool, Any]:
@@ -3644,32 +3623,7 @@ def validate_stage_runner_spec(state: Dict[str, Any], stage_spec: Dict[str, Any]
 
 
 def ensure_counter_progress(before: Dict[str, Any], after: Dict[str, Any], stage: str) -> Dict[str, Any]:
-    progress = after.setdefault("progress", {})
-    before_progress = before.get("progress", {}) if isinstance(before.get("progress", {}), dict) else {}
-
-    counters = progress.setdefault("counters", {})
-    before_counters = before_progress.get("counters", {}) if isinstance(before_progress.get("counters", {}), dict) else {}
-
-    run_seq = int(progress.get("run_seq", 0) or 0)
-    before_run_seq = int(before_progress.get("run_seq", 0) or 0)
-    if run_seq <= before_run_seq:
-        progress["run_seq"] = before_run_seq + 1
-
-    total_runs = int(counters.get("total_runs", 0) or 0)
-    before_total = int(before_counters.get("total_runs", 0) or 0)
-    if total_runs <= before_total:
-        counters["total_runs"] = before_total + 1
-
-    key = stage_counter_key(stage)
-    if key:
-        now_stage = int(counters.get(key, 0) or 0)
-        before_stage = int(before_counters.get(key, 0) or 0)
-        if now_stage <= before_stage:
-            counters[key] = before_stage + 1
-
-    progress["stage"] = stage
-    progress["last_updated_utc"] = utc_now()
-    return after
+    return ensure_counter_progress_impl(before, after, stage)
 
 
 def compact_hint_text(s: str, max_chars: int) -> str:
