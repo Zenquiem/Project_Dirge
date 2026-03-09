@@ -40,6 +40,7 @@ from core.recovery_engine import classify_failure, next_backoff_seconds, should_
 from core.session_control import acquire_run_lock, clear_stop_request, read_stop_request, release_run_lock  # noqa: E402
 from core.stage_runner import get_stage_spec, register_stage_receipt, stage_prompt_contract, write_stage_receipt  # noqa: E402
 from core.stage_contracts import validate_stage_contract  # noqa: E402
+from core.text_utils import compact_text, session_tag, truthy_flag  # noqa: E402
 from session_reports import (  # noqa: E402
     write_acceptance_report as _write_acceptance_report_impl,
     write_cost_fuse_report as _write_cost_fuse_report_impl,
@@ -3189,12 +3190,6 @@ def write_ida_dual_evidence_bundle(state_path: str, session_id: str, loop_idx: i
     return out_rel
 
 
-def _session_tag(raw: str) -> str:
-    s = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(raw or "").strip())
-    s = s.strip("._-")
-    return s or "shared"
-
-
 def configure_session_mcp_env(session_id: str) -> Dict[str, Any]:
     keys = [
         "DIRGE_SESSION_ID",
@@ -3210,7 +3205,7 @@ def configure_session_mcp_env(session_id: str) -> Dict[str, Any]:
     ]
     prev = {k: os.environ.get(k) for k in keys}
     sid = str(session_id or "").strip()
-    tag = _session_tag(sid)
+    tag = session_tag(sid)
     os.environ["DIRGE_SESSION_ID"] = sid
     os.environ["PWN_SESSION_ID"] = sid
 
@@ -3775,12 +3770,7 @@ def ensure_counter_progress(before: Dict[str, Any], after: Dict[str, Any], stage
 
 
 def compact_hint_text(s: str, max_chars: int) -> str:
-    txt = " ".join(str(s or "").split())
-    if max_chars <= 0:
-        return txt
-    if len(txt) <= max_chars:
-        return txt
-    return txt[: max_chars - 3] + "..."
+    return compact_text(s, max_chars)
 
 
 def build_stage_prompt(stage: str, context: Dict[str, str], contract_hint: str = "") -> str:
@@ -3919,10 +3909,7 @@ def build_stage_prompt(stage: str, context: Dict[str, str], contract_hint: str =
 
 
 def _is_truthy_flag(v: Any) -> bool:
-    if isinstance(v, bool):
-        return bool(v)
-    s = str(v or "").strip().lower()
-    return s in {"1", "true", "yes", "on"}
+    return truthy_flag(v)
 
 
 def _manual_exp_regen_locked(
@@ -4177,12 +4164,7 @@ def run_exp_verify(
 
 
 def _shorten_text(s: str, max_chars: int) -> str:
-    txt = " ".join(str(s or "").split())
-    if max_chars <= 0:
-        return txt
-    if len(txt) <= max_chars:
-        return txt
-    return txt[: max_chars - 3] + "..."
+    return compact_text(s, max_chars)
 
 
 def _read_verify_report_detail(report_rel: str, max_error_chars: int = 500) -> Dict[str, Any]:
