@@ -41,6 +41,7 @@ from core.session_control import acquire_run_lock, clear_stop_request, read_stop
 from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
 from core.stage_runner import get_stage_spec, register_stage_receipt, stage_prompt_contract, write_stage_receipt  # noqa: E402
 from core.stage_contracts import validate_stage_contract  # noqa: E402
+from core.state_utils import get_path_value as get_state_path_value, validate_stage_runner_spec as validate_stage_runner_spec_impl  # noqa: E402
 from core.text_utils import compact_text, session_tag, truthy_flag  # noqa: E402
 from session_reports import (  # noqa: E402
     write_acceptance_report as _write_acceptance_report_impl,
@@ -3635,93 +3636,11 @@ def stage_counter_key(stage: str) -> str:
 
 
 def get_path_value(data: Dict[str, Any], path: str) -> Tuple[bool, Any]:
-    cur: Any = data
-    for key in path.split("."):
-        if isinstance(cur, dict) and key in cur:
-            cur = cur[key]
-        else:
-            return False, None
-    return True, cur
+    return get_state_path_value(data, path)
 
 
 def validate_stage_runner_spec(state: Dict[str, Any], stage_spec: Dict[str, Any]) -> List[str]:
-    errors: List[str] = []
-    latest = state.get("artifacts_index", {}).get("latest", {}).get("paths", {})
-    if not isinstance(latest, dict):
-        latest = {}
-
-    for key in stage_spec.get("required_artifact_keys", []):
-        p = str(latest.get(key, "")).strip()
-        if not p:
-            errors.append(f"required artifact key missing/empty: latest.paths.{key}")
-            continue
-        ap = os.path.join(ROOT_DIR, p) if not os.path.isabs(p) else p
-        if not os.path.exists(ap):
-            errors.append(f"required artifact file not found: latest.paths.{key} -> {p}")
-
-    for path in stage_spec.get("required_state_paths", []):
-        ok, value = get_path_value(state, str(path))
-        if not ok:
-            errors.append(f"required state path missing: {path}")
-            continue
-        if value is None:
-            errors.append(f"required state path is null: {path}")
-            continue
-        if isinstance(value, str) and not value.strip():
-            errors.append(f"required state path empty: {path}")
-            continue
-        if isinstance(value, list) and len(value) == 0:
-            errors.append(f"required state path list empty: {path}")
-            continue
-
-    def _value_present(value: Any) -> bool:
-        if value is None:
-            return False
-        if isinstance(value, str):
-            return bool(value.strip())
-        if isinstance(value, list):
-            return len(value) > 0
-        return True
-
-    req_last_evid = stage_spec.get("required_last_evidence_paths", [])
-    req_last_any = stage_spec.get("required_last_evidence_any_of_paths", [])
-    has_last_requirements = (
-        (isinstance(req_last_evid, list) and bool(req_last_evid))
-        or (isinstance(req_last_any, list) and bool(req_last_any))
-    )
-    if has_last_requirements:
-        dynamic = state.get("dynamic_evidence", {}) if isinstance(state.get("dynamic_evidence", {}), dict) else {}
-        evid = dynamic.get("evidence", []) if isinstance(dynamic.get("evidence", []), list) else []
-        if not evid:
-            errors.append("required last evidence missing: dynamic_evidence.evidence is empty")
-        else:
-            last = evid[-1] if isinstance(evid[-1], dict) else {}
-            if not isinstance(last, dict):
-                errors.append("required last evidence invalid: dynamic_evidence.evidence[-1] is not object")
-            else:
-                if isinstance(req_last_evid, list):
-                    for path in req_last_evid:
-                        ok, value = get_path_value(last, str(path))
-                        if not ok:
-                            errors.append(f"required last evidence path missing: {path}")
-                            continue
-                        if not _value_present(value):
-                            errors.append(f"required last evidence path empty: {path}")
-                            continue
-                if isinstance(req_last_any, list) and req_last_any:
-                    any_ok = False
-                    norm_paths = [str(x).strip() for x in req_last_any if str(x).strip()]
-                    for path in norm_paths:
-                        ok, value = get_path_value(last, path)
-                        if ok and _value_present(value):
-                            any_ok = True
-                            break
-                    if (not any_ok) and norm_paths:
-                        errors.append(
-                            "required last evidence any_of not satisfied: "
-                            + ", ".join(norm_paths)
-                        )
-    return errors
+    return validate_stage_runner_spec_impl(state, stage_spec, root_dir=ROOT_DIR)
 
 
 def ensure_counter_progress(before: Dict[str, Any], after: Dict[str, Any], stage: str) -> Dict[str, Any]:
