@@ -24,7 +24,7 @@ USER_PROMPT=""
 USER_PROMPT_FILE=""
 CODEX_BIN="${CODEX_BIN:-$ROOT_DIR/scripts/codex_with_mcp.sh}"
 FORCE_MCP_WRAPPER="${FORCE_MCP_WRAPPER:-1}"
-CODEX_DEFAULT_MODEL="${CODEX_DEFAULT_MODEL:-gpt-5.3-codex}"
+CODEX_DEFAULT_MODEL="${CODEX_DEFAULT_MODEL:-gpt-5.4}"
 CODEX_DEFAULT_REASONING_EFFORT="${CODEX_DEFAULT_REASONING_EFFORT:-xhigh}"
 
 if [[ "$FORCE_MCP_WRAPPER" == "1" && -x "$ROOT_DIR/scripts/codex_with_mcp.sh" ]]; then
@@ -75,7 +75,7 @@ Options:
 Env:
   CODEX_BIN               codex 可执行名/路径（默认: scripts/codex_with_mcp.sh）
   FORCE_MCP_WRAPPER       1=强制使用 scripts/codex_with_mcp.sh（默认），0=允许 CODEX_BIN 覆盖
-  CODEX_DEFAULT_MODEL     默认模型（默认: gpt-5.3-codex）
+  CODEX_DEFAULT_MODEL     默认模型（默认: gpt-5.4）
   CODEX_DEFAULT_REASONING_EFFORT 默认推理强度（默认: xhigh）
 USAGE
 }

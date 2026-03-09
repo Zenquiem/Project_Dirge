@@ -406,7 +406,7 @@ codex:
   bin: scripts/codex_with_mcp.sh
   enforce_configured_bin: true
   allow_env_codex_bin_override: false
-  model: gpt-5.3-codex
+  model: gpt-5.4
   retries: 0
   internal_retry_on_nonzero: false
   default_timeout_sec: 75

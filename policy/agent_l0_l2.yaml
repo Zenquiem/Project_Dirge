@@ -198,7 +198,7 @@ automation:
     bundle_include_exploit_stages: false
     skip_intermediate_exploit: true
     codex_retries: 0
-    codex_model: gpt-5.3-codex
+    codex_model: gpt-5.4
     codex_model_reasoning_effort: xhigh
     stage_model_reasoning_effort:
       recon: xhigh
@@ -226,7 +226,7 @@ kpi:
 codex:
   bin: scripts/codex_with_mcp.sh
   enforce_configured_bin: true
-  model: gpt-5.3-codex
+  model: gpt-5.4
   retries: 1
   model_reasoning_effort: xhigh
   stage_model_reasoning_effort:
