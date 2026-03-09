@@ -1,0 +1,242 @@
+version: 1
+
+features:
+  enable_exploit: true
+  exploit_plugin: "l3_default"
+  allow_remote_exp: true
+
+automation:
+  default_max_loops: 4
+  force_reach_terminal_exploit_stage: false
+  unified_solve:
+    enabled: true
+    max_loops: 4
+  stage_order:
+    - recon
+    - ida_slice
+    - gdb_evidence
+  decision:
+    enable_adaptive_stage_order: false
+    skip_recon_if_protections_known: true
+    prefer_gdb_when_hypotheses_exist: true
+    prioritize_gdb_when_crash_unstable: true
+    prefer_exploit_when_rip_control: false
+    force_ida_after_no_progress_loops: 2
+    stop_after_no_progress_loops: 1
+    hypothesis_no_progress_drop_threshold: 2
+    max_active_hypotheses: 3
+    restrict_to_l3_on_codex_missing: true
+    input_mutation:
+      enabled: false
+      max_total_inputs: 8
+      max_len: 256
+      max_seed_files: 2
+      seed_strings:
+        - "AAAA"
+        - "BBBB"
+        - "%p%p%p"
+        - "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  recovery:
+    enabled: true
+    clear_stale_stop_request_on_start: true
+    default_max_retries: 0
+    auto_continue_on_mcp_failure_stages: []
+    stage_max_retries:
+      recon: 1
+      ida_slice: 0
+      gdb_evidence: 1
+    ida_fail_open:
+      enabled: true
+      failure_categories:
+        - timeout
+        - mcp_transient
+        - stage_runtime_error
+      write_blocker_report: true
+    backoff_base_sec: 0.8
+    backoff_cap_sec: 6.0
+  objectives:
+    enabled: true
+    prioritize_missing_stages: true
+    stop_when_target_achieved: true
+    target:
+      require_stage_completion:
+        - recon
+        - ida_slice
+        - gdb_evidence
+      require_exploit_when_enabled: false
+      require_exploit_stage: ""
+      require_capabilities_all: []
+      require_capabilities_any: []
+  capability_inference:
+    enabled: true
+    crash_stability_threshold: 2
+  exploit_stage:
+    run_codex: false
+    skip_intermediate_when_terminal: true
+  exploit_verify:
+    enabled: true
+    strict: false
+    run: true
+    verify_mode: auto
+    quick_then_full: true
+    run_timeout_sec: 3.0
+    run_strict: false
+    run_env_defaults:
+      PWN_SEND_DELAY_SEC: "0.12"
+      PWN_VERIFY_RECV_SEC: "1.20"
+      PWN_REMOTE_RETRIES: "2"
+      PWN_STAGE2_POST_DELAY_SEC: "0.10"
+      PWN_STAGE2_POST_RECV_SEC: "0.45"
+      PWN_LIBC_PROFILE: "auto"
+    python_bin: ""
+    repeat: 1
+    min_passes: 1
+  mcp_health:
+    check_before_run: true
+    check_before_each_stage: true
+    fail_fast_on_stage_unhealthy: true
+    functional_probe_before_run: true
+    functional_probe_on_stage_gate: false
+    functional_probe_timeout_sec: 4.0
+    functional_probe_nonfatal: true
+    enable_alias_fallback: true
+    server_aliases:
+      pyghidra-mcp:
+        - pyghidra_bridge
+      pyghidra_bridge:
+        - pyghidra-mcp
+    ida_pre_stage_self_heal: true
+    self_heal_enabled: true
+    self_heal_on_start: true
+    self_heal_on_gate_failure: true
+    self_heal_warmup_health: true
+    self_heal_warmup_timeout_sec: 4.0
+    self_heal_include_gdb: false
+    stage_gate_stages:
+      - recon
+      - ida_slice
+      - gdb_evidence
+    stage_gate_timeout_sec: 3.0
+    stage_gate_retry_once: true
+    stage_gate_retry_wait_sec: 0.7
+    stage_gate_retry_backoff: 1.7
+    stage_gate_max_retries: 2
+    stage_gate_self_heal_retries: 2
+    stage_gate_self_heal_retry_wait_sec: 0.8
+    strict: true
+    timeout_sec: 6.0
+    required_servers:
+      - pyghidra-mcp
+      - gdb
+  hard_step:
+    enabled: true
+    direct_gdb_probe: true
+    enforce_allowed_tools: false
+    default_max_tool_calls: 8
+    blocked_tools:
+      - codex.list_mcp_resources*
+      - codex.list_mcp_resource_templates*
+    stage_max_tool_calls:
+      recon: 7
+      ida_slice: 7
+      gdb_evidence: 8
+      bundle_l0_l2: 14
+  context:
+    mode: minimal
+    include_hypothesis_ids: false
+    include_mutations: false
+    include_state_digest: false
+    contract_hint_max_chars: 160
+  stage_cache:
+    enabled: false
+    overwrite: false
+    stages:
+      - recon
+      - ida_slice
+      - gdb_evidence
+    bundle_l0_l2:
+      enabled: true
+      require_consecutive: true
+      include_exploit_stages: false
+  cost_fuses:
+    max_codex_calls: 3
+    max_prompt_chars: 6000
+    max_wall_time_sec: 900
+  acceptance:
+    enabled: false
+    max_wall_time_sec: 1200
+    max_codex_calls: 3
+    max_prompt_chars_total: 20000
+    required_terminal_stage: ""
+  fast_profile:
+    apply_by_default: true
+    max_loops: 4
+    disable_validate: true
+    disable_verifier: true
+    disable_mcp_health: false
+    disable_mcp_stage_gate: false
+    hard_step_enabled: true
+    hard_step_direct_gdb_probe: true
+    hard_step_enforce_allowed_tools: false
+    hard_step_default_max_tool_calls: 8
+    hard_step_stage_max_tool_calls:
+      recon: 7
+      ida_slice: 7
+      gdb_evidence: 8
+      bundle_l0_l2: 14
+    disable_mutation: true
+    disable_capability_inference: false
+    disable_objective_engine: false
+    context_mode: minimal
+    context_include_hypothesis_ids: false
+    context_include_mutations: false
+    context_include_state_digest: false
+    context_contract_hint_max_chars: 120
+    cache_enabled: false
+    cache_overwrite: false
+    bundle_l0_l2: true
+    bundle_include_exploit_stages: false
+    skip_intermediate_exploit: true
+    codex_retries: 0
+    codex_model: gpt-5.3-codex
+    codex_model_reasoning_effort: xhigh
+    stage_model_reasoning_effort:
+      recon: xhigh
+      ida_slice: xhigh
+      gdb_evidence: xhigh
+      bundle_l0_l2: xhigh
+    max_codex_calls: 2
+    max_prompt_chars: 3200
+    max_wall_time_sec: 420
+    timeout_sec:
+      recon: 45
+      ida_slice: 45
+      gdb_evidence: 60
+      bundle_l0_l2: 140
+  run_validate_state_before_each_stage: false
+  run_verifier_after_each_stage: false
+  stop_on_stage_failure: true
+
+kpi:
+  enabled: true
+  paths:
+    global: artifacts/reports/kpi_latest.json
+    per_session: sessions/{session_id}/metrics.json
+
+codex:
+  bin: scripts/codex_with_mcp.sh
+  enforce_configured_bin: true
+  model: gpt-5.3-codex
+  retries: 1
+  model_reasoning_effort: xhigh
+  stage_model_reasoning_effort:
+    recon: xhigh
+    ida_slice: xhigh
+    gdb_evidence: xhigh
+    bundle_l0_l2: xhigh
+  default_timeout_sec: 75
+  timeout_sec:
+    recon: 70
+    ida_slice: 90
+    gdb_evidence: 90
+    bundle_l0_l2: 140

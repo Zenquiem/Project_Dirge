@@ -1,0 +1,6 @@
+echo ==[evidence] regs ==\n
+info registers
+
+echo ==[evidence] bt ==\n
+bt
+

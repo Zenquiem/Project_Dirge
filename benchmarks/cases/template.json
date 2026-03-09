@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "challenge_dir": "challenge/<your_case_dir>",
+  "binary": "<binary_name>",
+  "max_loops": 1,
+  "allow_codex_missing": true,
+  "notes": "复制本文件并改名为你的 case_id.json"
+}

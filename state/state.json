@@ -1,0 +1,504 @@
+{
+  "version": 1.0,
+  "project": {
+    "mode": "mcp_only",
+    "notes": "",
+    "features": {
+      "enable_exploit": true,
+      "exploit_plugin": "l3_default",
+      "allow_remote_exp": true
+    }
+  },
+  "challenge": {
+    "name": "ezmqtt",
+    "binary_path": "challenge/sess_20260308T095929Z_98d3105227f3/pwn",
+    "workdir": "challenge/sess_20260308T095929Z_98d3105227f3",
+    "notes": "session-managed",
+    "import_meta": {
+      "session_id": "sess_20260308T095929Z_98d3105227f3",
+      "source_dir": "/home/zenduk/桌面/desctf/ezmqtt",
+      "import_mode": "copied",
+      "imported_utc": "2026-03-08T09:59:29Z",
+      "binary_selection_note": "",
+      "blind_mode": false
+    },
+    "runtime_guard": {
+      "report": "artifacts/reports/runtime_abi_guard_sess_20260308T095929Z_98d3105227f3.json",
+      "selected_mismatch": false,
+      "binary_bits": 64,
+      "binary_arch": "amd64",
+      "selected_libc_bits": 64,
+      "selected_libc_arch": "amd64",
+      "mismatched_libc_count": 0,
+      "libc_quarantine": []
+    },
+    "fastpath": {
+      "direct_system_binsh": false
+    },
+    "binary_sha256": "aaf248780cb91df03fc95e841883a87a099505504e7e0e7be1f1fdbfb22ddf22"
+  },
+  "env": {
+    "require_container": false,
+    "fingerprint": {
+      "id": "",
+      "container_image": "",
+      "kernel": "",
+      "arch": "",
+      "libc": {
+        "path": "",
+        "sha256": ""
+      },
+      "ld": {
+        "path": "",
+        "sha256": ""
+      },
+      "aslr": null
+    }
+  },
+  "protections": {
+    "arch": "",
+    "bits": null,
+    "endian": "",
+    "nx": null,
+    "pie": null,
+    "relro": "",
+    "canary": null
+  },
+  "io_profile": {
+    "mode": "",
+    "prompt_style": "",
+    "expects_newline": null,
+    "notes": ""
+  },
+  "capabilities": {
+    "has_crash": false,
+    "crash_stable": false,
+    "rip_control": "unknown",
+    "stack_smash_suspected": false,
+    "has_leak": "unknown",
+    "write_primitive": "unknown",
+    "notes": "",
+    "control_rip": false,
+    "offset_to_rip": 0,
+    "ret2win_path_verified": false,
+    "system_call_observed": false,
+    "exploit_success": false
+  },
+  "progress": {
+    "stage": "exploit_l4",
+    "run_seq": 3,
+    "loop_seq": 3,
+    "decision": {
+      "adaptive_stage_order": false,
+      "no_progress_loops": 0,
+      "last_stage_plan": [
+        "recon",
+        "ida_slice",
+        "gdb_evidence",
+        "exploit_l4"
+      ],
+      "last_decision_report": "artifacts/reports/decision_sess_20260308T095929Z_98d3105227f3_03.json",
+      "last_active_hypothesis_ids": [],
+      "last_loop_had_progress": false,
+      "timeout_circuit": {
+        "enabled": false,
+        "stages": [
+          "ida_slice",
+          "recon"
+        ],
+        "failure_categories": [
+          "mcp_transient",
+          "timeout"
+        ],
+        "consecutive_failures": 1,
+        "cooldown_loops": 6,
+        "failure_streak": {
+          "ida_slice": 0,
+          "recon": 0
+        },
+        "skip_remaining_loops": {}
+      },
+      "codex_unhealthy_cooldown": {
+        "enabled": false,
+        "stages": [
+          "ida_slice",
+          "recon"
+        ],
+        "failure_categories": [
+          "mcp_transient",
+          "timeout"
+        ],
+        "consecutive_failures": 1,
+        "cooldown_loops": 6,
+        "failure_streak": {
+          "ida_slice": 0,
+          "recon": 0
+        },
+        "skip_remaining_loops": {}
+      },
+      "recommend_external_hint": false,
+      "strategy_route_switch": {
+        "enabled": true,
+        "no_progress_loops": 1,
+        "terminal_unsolved_streak": 1,
+        "weak_only": false,
+        "switch_count": 2,
+        "cycle": [
+          "ret2win",
+          "ret2libc",
+          "fmtstr_got_write",
+          "fmtstr_wp_fastpath",
+          "direct_execve_shell",
+          "direct_system_binsh",
+          "js_shell_cmd_exec"
+        ],
+        "last_applied": true,
+        "last_report": "artifacts/reports/strategy_route_switch_sess_20260308T095929Z_98d3105227f3_03.json"
+      },
+      "hint_request_gate": {
+        "enabled": true,
+        "no_progress_loops": 2,
+        "no_new_evidence_sec": 1800.0,
+        "last_no_new_evidence_sec": 405.358,
+        "rewrite_elapsed_sec": 201.426,
+        "rewrite_request_hint_after_wall_sec": 600.0,
+        "rewrite_triggered": false,
+        "last_triggered": false,
+        "last_report": "",
+        "stop_on_trigger": false,
+        "stop_on_rewrite_wall": false
+      },
+      "timeout_no_evidence_gate": {
+        "enabled": false,
+        "consecutive_timeout_loops": 2,
+        "require_no_progress": true,
+        "blind_mode_only": true,
+        "stop_on_trigger": false,
+        "loop_rc124_failures": 2,
+        "timeout_streak": 0,
+        "last_triggered": false,
+        "last_report": ""
+      }
+    },
+    "objectives": {
+      "score": 0,
+      "target_achieved": false,
+      "required_stages": [
+        "recon",
+        "ida_slice",
+        "gdb_evidence",
+        "exploit_l4"
+      ],
+      "missing_stages": [
+        "recon",
+        "ida_slice",
+        "gdb_evidence",
+        "exploit_l4"
+      ],
+      "blockers": [
+        "stage incomplete: recon",
+        "stage incomplete: ida_slice",
+        "stage incomplete: gdb_evidence",
+        "stage incomplete: exploit_l4"
+      ],
+      "last_objective_report": "artifacts/reports/objective_sess_20260308T095929Z_98d3105227f3_03.json",
+      "last_eval_utc": "2026-03-08T10:06:49Z",
+      "competition_target_achieved": false,
+      "competition_reasons": []
+    },
+    "counters": {
+      "total_runs": 3,
+      "recon_runs": 0,
+      "ida_calls": 0,
+      "gdb_runs": 0,
+      "exploit_runs": 3
+    },
+    "last_updated_utc": "2026-03-08T10:06:44Z",
+    "timing": {
+      "stages": {
+        "recon": {
+          "loop": 3,
+          "stage": "recon",
+          "started_utc": "2026-03-08T10:03:33Z",
+          "ended_utc": "2026-03-08T10:04:22Z",
+          "duration_ms": 49100,
+          "attempts": 2,
+          "ok": false,
+          "history": [
+            {
+              "loop": 1,
+              "stage": "recon",
+              "started_utc": "2026-03-08T10:00:12Z",
+              "ended_utc": "2026-03-08T10:01:01Z",
+              "duration_ms": 49027,
+              "attempts": 2,
+              "ok": false
+            },
+            {
+              "loop": 3,
+              "stage": "recon",
+              "started_utc": "2026-03-08T10:03:33Z",
+              "ended_utc": "2026-03-08T10:04:22Z",
+              "duration_ms": 49100,
+              "attempts": 2,
+              "ok": false
+            }
+          ]
+        },
+        "gdb_evidence": {
+          "loop": 3,
+          "stage": "gdb_evidence",
+          "started_utc": "2026-03-08T10:04:22Z",
+          "ended_utc": "2026-03-08T10:06:44Z",
+          "duration_ms": 141705,
+          "attempts": 2,
+          "ok": false,
+          "history": [
+            {
+              "loop": 1,
+              "stage": "gdb_evidence",
+              "started_utc": "2026-03-08T10:01:01Z",
+              "ended_utc": "2026-03-08T10:03:23Z",
+              "duration_ms": 141476,
+              "attempts": 2,
+              "ok": false
+            },
+            {
+              "loop": 3,
+              "stage": "gdb_evidence",
+              "started_utc": "2026-03-08T10:04:22Z",
+              "ended_utc": "2026-03-08T10:06:44Z",
+              "duration_ms": 141705,
+              "attempts": 2,
+              "ok": false
+            }
+          ]
+        },
+        "exploit_l4": {
+          "loop": 3,
+          "stage": "exploit_l4",
+          "started_utc": "2026-03-08T10:06:44Z",
+          "ended_utc": "2026-03-08T10:06:49Z",
+          "duration_ms": 5296,
+          "attempts": 1,
+          "ok": false,
+          "history": [
+            {
+              "loop": 1,
+              "stage": "exploit_l4",
+              "started_utc": "2026-03-08T10:03:23Z",
+              "ended_utc": "2026-03-08T10:03:28Z",
+              "duration_ms": 5146,
+              "attempts": 1,
+              "ok": false
+            },
+            {
+              "loop": 2,
+              "stage": "exploit_l4",
+              "started_utc": "2026-03-08T10:03:28Z",
+              "ended_utc": "2026-03-08T10:03:33Z",
+              "duration_ms": 4962,
+              "attempts": 1,
+              "ok": false
+            },
+            {
+              "loop": 3,
+              "stage": "exploit_l4",
+              "started_utc": "2026-03-08T10:06:44Z",
+              "ended_utc": "2026-03-08T10:06:49Z",
+              "duration_ms": 5296,
+              "attempts": 1,
+              "ok": false
+            }
+          ]
+        }
+      },
+      "last_stage": "exploit_l4",
+      "last_updated_utc": "2026-03-08T10:06:49Z"
+    },
+    "stage_durations": {
+      "recon": {
+        "last_duration_ms": 49100,
+        "last_duration_sec": 49.1,
+        "last_loop": 3,
+        "last_ok": false
+      },
+      "gdb_evidence": {
+        "last_duration_ms": 141705,
+        "last_duration_sec": 141.705,
+        "last_loop": 3,
+        "last_ok": false
+      },
+      "exploit_l4": {
+        "last_duration_ms": 5296,
+        "last_duration_sec": 5.296,
+        "last_loop": 3,
+        "last_ok": false
+      }
+    },
+    "stage_duration_totals_ms": {
+      "recon": 98127,
+      "gdb_evidence": 283181,
+      "exploit_l4": 15404
+    }
+  },
+  "artifacts_index": {
+    "runs": [],
+    "latest": {
+      "run_id": "",
+      "paths": {
+        "runtime_abi_guard_report": "artifacts/reports/runtime_abi_guard_sess_20260308T095929Z_98d3105227f3.json",
+        "runtime_env_profile": "sessions/sess_20260308T095929Z_98d3105227f3/runtime/runtime_env.auto.sh",
+        "binary_path_guard_report": "artifacts/reports/binary_path_guard_sess_20260308T095929Z_98d3105227f3.json",
+        "quick_strategy_report": "artifacts/reports/quick_strategy_sess_20260308T095929Z_98d3105227f3.json",
+        "mcp_hard_preflight_report": "artifacts/reports/mcp_hard_preflight_sess_20260308T095929Z_98d3105227f3.json",
+        "binary_identity_report": "artifacts/reports/binary_identity_sess_20260308T095929Z_98d3105227f3_preflight.json",
+        "mcp_self_heal_report": "artifacts/reports/mcp_self_heal_sess_20260308T095929Z_98d3105227f3_00_preflight.json",
+        "mcp_self_heal_preflight": "artifacts/reports/mcp_self_heal_sess_20260308T095929Z_98d3105227f3_00_preflight.json",
+        "capabilities_report": "artifacts/reports/capabilities_sess_20260308T095929Z_98d3105227f3_04.json",
+        "decision_report": "artifacts/reports/decision_sess_20260308T095929Z_98d3105227f3_04.json",
+        "mcp_gate_report": "artifacts/reports/mcp_gate_sess_20260308T095929Z_98d3105227f3_03_gdb_evidence_01.json",
+        "mcp_gate_recon": "artifacts/reports/mcp_gate_sess_20260308T095929Z_98d3105227f3_03_recon_01.json",
+        "stage_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_exploit_l4.json",
+        "recon_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_recon.json",
+        "mcp_gate_gdb_evidence": "artifacts/reports/mcp_gate_sess_20260308T095929Z_98d3105227f3_03_gdb_evidence_01.json",
+        "gdb_evidence_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_gdb_evidence.json",
+        "exp_local_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_local.py",
+        "exp_remote_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_remote.py",
+        "exp_plan_report": "artifacts/reports/exp_plan_sess_20260308T095929Z_98d3105227f3.json",
+        "exp_verify_report": "artifacts/reports/exp_verify_sess_20260308T095929Z_98d3105227f3_03.json",
+        "exploit_l4_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_exploit_l4.json",
+        "objective_report": "artifacts/reports/objective_sess_20260308T095929Z_98d3105227f3_03.json",
+        "strategy_route_switch_report": "artifacts/reports/strategy_route_switch_sess_20260308T095929Z_98d3105227f3_03.json",
+        "exploit_rewrite_report": "artifacts/reports/exploit_rewrite_sess_20260308T095929Z_98d3105227f3.json"
+      }
+    }
+  },
+  "static_analysis": {
+    "entrypoints": [],
+    "suspects": [],
+    "hypotheses": []
+  },
+  "hypotheses": {
+    "active": [],
+    "dead": []
+  },
+  "dynamic_evidence": {
+    "inputs": [],
+    "evidence": [],
+    "clusters": []
+  },
+  "latest_bases": {
+    "pie_base": "",
+    "libc_base": ""
+  },
+  "summary": {
+    "current_best_guess": "",
+    "blockers": [],
+    "next_actions": [
+      "exploit_l4"
+    ]
+  },
+  "session": {
+    "session_id": "sess_20260308T095929Z_98d3105227f3",
+    "created_utc": "2026-03-08T09:59:29Z",
+    "status": "stopped",
+    "codex_enabled": true,
+    "codex_pid": null,
+    "challenge_source_dir": "/home/zenduk/桌面/desctf/ezmqtt",
+    "challenge_work_dir": "challenge/sess_20260308T095929Z_98d3105227f3",
+    "conversation_log": "sessions/sess_20260308T095929Z_98d3105227f3/conversation.log",
+    "prompt_file": "sessions/sess_20260308T095929Z_98d3105227f3/prompt.txt",
+    "exp": {
+      "path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp.py",
+      "status": "updated",
+      "generated_utc": "2026-03-08T10:08:21Z",
+      "strategy": "fmtstr_got_write",
+      "plan_report": "artifacts/reports/exp_plan_sess_20260308T095929Z_98d3105227f3.json",
+      "local_verify_passed": false,
+      "verify_env_defaults": {
+        "PWN_SEND_DELAY_SEC": "0.08",
+        "PWN_VERIFY_RECV_SEC": "0.85",
+        "PWN_VERIFY_CMD_GAP_SEC": "0.06",
+        "PWN_REMOTE_RETRIES": "2",
+        "PWN_STAGE2_POST_DELAY_SEC": "0.06",
+        "PWN_STAGE2_POST_RECV_SEC": "0.30",
+        "PWN_LIBC_PROFILE": "auto",
+        "PWN_REMOTE_RETRY_BACKOFF": "1.5",
+        "PWN_REMOTE_RETRY_JITTER_SEC": "0.12",
+        "PWN_REMOTE_RETRY_MAX_DELAY_SEC": "1.8",
+        "PWN_STAGE1_POST_RECV_SEC": "0.35",
+        "PWN_STAGE1_DRAIN_RECV_SEC": "0.08",
+        "PWN_STAGE1_CLEAR_BUF_RECV_SEC": "0.06",
+        "PWN_STAGE1_CLEAR_BUF_ROUNDS": "2",
+        "PWN_STAGE1_SELFCHECK_STRICT": "1",
+        "PWN_PAYLOAD_ASSERT_LEN": "1",
+        "PWN_STAGE1_PARSE_LEAKS": "1",
+        "PWN_LEAK_SKIP_ASCII_WINDOWS": "1",
+        "PWN_LEAK_PAGE_ALIGN": "1",
+        "PWN_FLAG_SCAN_LONG": "0",
+        "PWN_POST_SHELL_CMDS": "pwd;ls /;cat /flag;cat flag",
+        "PWN_MENU_NOISE_FILTER": "1",
+        "PWN_REMOTE_PREFLIGHT": "1",
+        "PWN_REMOTE_MENU_SYNC": "1",
+        "PWN_EXPECT_HINTS": "$,#",
+        "PWN_STRICT_MENU_SYNC": "1",
+        "PWN_STRICT_MENU_SYNC_FAILFAST": "1",
+        "PWN_MENU_SYNC_TIMEOUT_SEC": "0.55",
+        "PWN_OFFSET_CANDIDATES": "23,24,31,32,39,40,47,48,55,56,63,64,72,76,96,100,112,120,124,128,132,136,140,144,160",
+        "PWN_INPUT_ALIGN_MODE": "auto",
+        "PWN_INPUT_ALIGN_SCANF_LEN": "4",
+        "PWN_INPUT_ALIGN_GAP_SEC": "0.04",
+        "PWN_FMT_ROUTE": "auto",
+        "PWN_FMT_WP_FASTPATH": "1",
+        "PWN_FMT_WP_LEAK": "%397$p",
+        "PWN_FMT_WP_HHN_INDEX": "133",
+        "PWN_PIVOT_OFFSETS": "0x50,0x60,0x70,0x80,0x90",
+        "PWN_PIVOT_FRAME_LEN": "0xff",
+        "PWN_PIVOT_TRIGGER_LEN": "0x400",
+        "PWN_PIVOT_STAGE2_LEN": "0x400",
+        "PWN_PIVOT_BINSH_OFF": "0x180",
+        "PWN_PIVOT_PROMPT_TIMEOUT_SEC": "3.0",
+        "PWN_PIVOT_REQUIRE_REMOTE_PHASED": "1",
+        "PWN_PIVOT_NAME_PROMPTS": "name >,name:,name?",
+        "PWN_PIVOT_TRIGGER_PROMPTS": "base64 >,base64:,data >,input >",
+        "PWN_PIVOT_CONFIRM_PROMPTS": "(y/n) >,(y/n):,y/n",
+        "PWN_PIVOT_CONFIRM_VALUE": "n",
+        "PWN_LOADER": "/mnt/Project_Dirge/challenge/sess_20260308T095929Z_98d3105227f3/ld-linux-x86-64.so.2",
+        "PWN_LIBC_PATH": "/mnt/Project_Dirge/challenge/sess_20260308T095929Z_98d3105227f3/libc.so.6",
+        "PWN_LD_LIBRARY_PATH": "/mnt/Project_Dirge/challenge/sess_20260308T095929Z_98d3105227f3",
+        "PWN_FORCE_LOADER": "1",
+        "PWN_LOCAL_PUTS_OFF": "0x80e50",
+        "PWN_LOCAL_READ_OFF": "0x1147d0",
+        "PWN_LOCAL_SYSTEM_OFF": "0x50d70",
+        "PWN_LOCAL_BINSH_OFF": "0x1d8678",
+        "PWN_RUNTIME_GUARD_MISMATCH": "0"
+      },
+      "runtime_env_profile": "sessions/sess_20260308T095929Z_98d3105227f3/runtime/runtime_env.auto.sh",
+      "manual_lock_active": false,
+      "preserve_existing_effective": true,
+      "local_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_local.py",
+      "remote_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_remote.py",
+      "verify_report": "artifacts/reports/exp_verify_sess_20260308T095929Z_98d3105227f3_03.json",
+      "strategy_hint": "fmtstr_got_write",
+      "rewrite_force_reason": "weak exp strategy remained unsolved: strategy=fuzz_probe, hint=none",
+      "strategy_switch_reason": "no progress + terminal unsolved streak: no_progress_loops=1, terminal_unsolved_streak=3",
+      "strategy_switch_utc": "2026-03-08T10:06:49Z"
+    },
+    "remote": {
+      "ask_pending": false,
+      "request_file": "",
+      "requested_utc": "",
+      "answer": "",
+      "answered_utc": "",
+      "target": {
+        "host": "",
+        "port": 0
+      },
+      "last_preflight_report": "",
+      "last_remote_report": "",
+      "last_remote_ok": false
+    },
+    "last_error": "no codex pid found"
+  }
+}

@@ -1,0 +1,154 @@
+{
+  // schema 版本号
+  "version": 1.0,
+
+  "project": {
+    "mode": "mcp_only",
+    "notes": "",
+    "features": {
+      "enable_exploit": true,
+      "exploit_plugin": "l3_default",
+      "allow_remote_exp": true
+    }
+  },
+
+  "challenge": {
+    "name": "",
+    "binary_path": "",
+    "workdir": "",
+    "notes": "",
+    "import_meta": {}
+  },
+
+  "env": {
+    "require_container": false,
+    "fingerprint": {
+      "id": "",
+      "container_image": "",
+      "kernel": "",
+      "arch": "",
+      "libc": { "path": "", "sha256": "" },
+      "ld": { "path": "", "sha256": "" },
+      "aslr": null
+    }
+  },
+
+  "protections": {
+    "arch": "",
+    "bits": null,
+    "endian": "",
+    "nx": null,
+    "pie": null,
+    "relro": "",
+    "canary": null
+  },
+
+  "io_profile": {
+    "mode": "",
+    "prompt_style": "",
+    "expects_newline": null,
+    "notes": ""
+  },
+
+  "capabilities": {
+    "has_crash": false,
+    "crash_stable": false,
+    "rip_control": "unknown",
+    "stack_smash_suspected": false,
+    "has_leak": "unknown",
+    "write_primitive": "unknown",
+    "notes": "",
+    "control_rip": false,
+    "offset_to_rip": 0,
+    "ret2win_path_verified": false,
+    "system_call_observed": false,
+    "exploit_success": false
+  },
+
+  "progress": {
+    "stage": "init",
+    "run_seq": 0,
+    "loop_seq": 0,
+    "decision": {
+      "adaptive_stage_order": true,
+      "no_progress_loops": 0,
+      "last_stage_plan": [],
+      "last_decision_report": "",
+      "last_active_hypothesis_ids": [],
+      "last_loop_had_progress": false
+    },
+    "objectives": {
+      "score": 0,
+      "target_achieved": false,
+      "required_stages": [],
+      "missing_stages": [],
+      "blockers": [],
+      "last_objective_report": "",
+      "last_eval_utc": ""
+    },
+    "counters": {
+      "total_runs": 0,
+      "recon_runs": 0,
+      "ida_calls": 0,
+      "gdb_runs": 0,
+      "exploit_runs": 0
+    },
+    "last_updated_utc": ""
+  },
+
+  "artifacts_index": {
+    "runs": [],
+    "latest": {
+      "run_id": "",
+      "paths": {}
+    }
+  },
+
+  "static_analysis": {
+    "entrypoints": [],
+    "suspects": [],
+    "hypotheses": []
+  },
+
+  "hypotheses": {
+    "active": [],
+    "dead": []
+  },
+
+  "dynamic_evidence": {
+    "inputs": [],
+    "evidence": [],
+    "clusters": []
+  },
+
+  "latest_bases": {
+    "pie_base": "",
+    "libc_base": ""
+  },
+
+  "summary": {
+    "current_best_guess": "",
+    "blockers": [],
+    "next_actions": []
+  },
+
+  "session": {
+    "session_id": "",
+    "created_utc": "",
+    "status": "init",
+    "codex_enabled": false,
+    "codex_pid": null,
+    "challenge_source_dir": "",
+    "challenge_work_dir": "",
+    "conversation_log": "",
+    "prompt_file": "",
+    "exp": {
+      "path": "",
+      "status": "enabled",
+      "generated_utc": "",
+      "strategy": "",
+      "plan_report": "",
+      "local_verify_passed": false
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# Local heavy deps / trash
+.deps/
+.Trash-1000/
+
+# Runtime artifacts
+artifacts/**
+!artifacts/cores/
+!artifacts/gdb/
+!artifacts/ida/
+!artifacts/inputs/
+!artifacts/logs/
+!artifacts/reports/
+!artifacts/tmp/
+
+# State backups
+state/state.json.bak*
+
+# Session runtime data
+sessions/*
+!sessions/README.md
+
+# Python
+__pycache__/
+*.pyc

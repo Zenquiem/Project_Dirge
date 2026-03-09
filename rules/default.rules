@@ -1,0 +1,47 @@
+# Rules: most restrictive wins (forbidden > prompt > allow)
+
+# 禁止提权与远程登录
+prefix_rule(
+    pattern = ["sudo"],
+    decision = "forbidden",
+    justification = "Do not allow agent-driven sudo."
+)
+
+prefix_rule(
+    pattern = ["ssh"],
+    decision = "forbidden",
+    justification = "Do not allow agent-driven ssh connections."
+)
+
+# 容器命令保持人工确认（MCP-only 主流程下通常不应触发）
+prefix_rule(
+    pattern = ["docker", ["run", "exec", "build", "compose", "pull"]],
+    decision = "prompt",
+    justification = "Container commands can affect host state."
+)
+
+prefix_rule(
+    pattern = ["podman", ["run", "exec", "build", "pull"]],
+    decision = "prompt",
+    justification = "Container commands can affect host state."
+)
+
+# 删除命令保护
+prefix_rule(
+    pattern = ["rm", "-rf", "/"],
+    decision = "forbidden",
+    justification = "Refuse destructive delete of root."
+)
+
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr", "-r", "-f"]],
+    decision = "prompt",
+    justification = "Deleting files is risky."
+)
+
+# 字符串 shell 执行默认人工确认
+prefix_rule(
+    pattern = ["bash", ["-c", "-lc"]],
+    decision = "prompt",
+    justification = "Shell string execution can hide multiple actions."
+)

@@ -1,0 +1,25 @@
+{
+  "generated_utc": "2026-02-14T03:29:57Z",
+  "source_report": "artifacts/reports/benchmark_replay_20260214T032956Z.json",
+  "scoreboard": {
+    "cases_total": 1,
+    "cases_executed": 1,
+    "cases_skipped": 0,
+    "cases_ok": 1,
+    "cases_failed": 0,
+    "success_rate": 1.0,
+    "codex_errors_total": 0,
+    "stage_retries_total": 0,
+    "recoverable_failures_total": 0,
+    "capability_updates_total": 1,
+    "exploit_success_total": 1,
+    "objective_score_avg": 0.0
+  },
+  "cases": [
+    {
+      "case_id": "demo_local",
+      "ok": true,
+      "run_rc": 0
+    }
+  ]
+}

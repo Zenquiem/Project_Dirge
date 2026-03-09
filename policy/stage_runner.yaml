@@ -1,0 +1,101 @@
+version: 1
+
+stages:
+  recon:
+    mcp_tools:
+      - pyghidra-mcp.import_binary
+      - pyghidra-mcp.list_project_binaries
+      - pyghidra-mcp.list_project_binary_metadata
+      - pyghidra-mcp.list_imports
+    required_artifact_keys:
+      - recon_log
+      - recon_report
+    required_state_paths:
+      - protections.arch
+      - protections.pie
+    prompt_contract_lines:
+      - "必须只用 MCP 进行 Recon，禁止 fallback 到 legacy 脚本。"
+      - "静态信息优先通过 pyghidra-mcp 获取并保持最小查询。"
+      - "必须执行 import-ready 门控：metadata.analysis_complete=true 才进入后续静态阶段。"
+      - "必须更新 protections/io_profile 与 artifacts_index.latest.paths.recon_*。"
+      - "只保留最小必需字段，避免重复探测与大段日志。"
+      - "禁止调用 session_api.py stop 或写 stop.requested.json。"
+
+  ida_slice:
+    mcp_tools:
+      - pyghidra-mcp.import_binary
+      - pyghidra-mcp.decompile_function
+      - pyghidra-mcp.list_cross_references
+      - pyghidra-mcp.gen_callgraph
+      - pyghidra-mcp.search_symbols_by_name
+    required_artifact_keys:
+      - ida_slice_json
+      - ida_slice_md
+      - ida_raw_log
+    required_state_paths:
+      - static_analysis.entrypoints
+      - static_analysis.suspects
+      - static_analysis.hypotheses
+    prompt_contract_lines:
+      - "围绕输入链/危险函数生成可验证 hypothesis（最多 3 条）。"
+      - "L1 默认静态后端为 pyghidra-mcp（阶段名 ida_slice 为兼容保留）。"
+      - "切片前必须确认 metadata.analysis_complete=true；否则返回 analysis pending。"
+      - "必须落盘 artifacts/ida 并更新 artifacts_index.latest.paths.ida_*。"
+      - "禁止调用 session_api.py stop 或写 stop.requested.json。"
+
+  gdb_evidence:
+    mcp_tools:
+      - gdb.starti
+      - gdb.run
+      - gdb.info_proc_mappings
+      - gdb.info_registers
+      - gdb.backtrace
+    required_artifact_keys:
+      - gdb_raw
+      - gdb_summary
+      - gdb_clusters
+    required_state_paths:
+      - dynamic_evidence.inputs
+      - dynamic_evidence.evidence
+      - latest_bases.pie_base
+    required_last_evidence_paths:
+      - evidence_id
+      - input_id
+      - mappings.pie_base
+    required_last_evidence_any_of_paths:
+      - gdb.rip
+      - gdb.pc_offset
+      - gdb.signal
+    prompt_contract_lines:
+      - "必须提取 mappings.pie_base 并写入 latest_bases.pie_base。"
+      - "必须登记 evidence_id/input_id；并至少写入一项 gdb 关键字段(rip/signal/pc_offset)。"
+      - "限制输出体积：回溯<=8帧，栈窗口<=32 qword，禁止大范围 dump。"
+      - "禁止调用 session_api.py stop 或写 stop.requested.json。"
+
+  exploit_l3:
+    mcp_tools:
+      - none
+    required_artifact_keys:
+      - exp_plan_report
+      - exp_verify_report
+    required_state_paths:
+      - session.exp.path
+      - session.exp.status
+      - session.exp.local_verify_passed
+    prompt_contract_lines:
+      - "优先生成/更新本地 exp，可预留远程 host/port 参数。"
+      - "必须更新 state.session.exp.* 并写入 exp_plan/exp_verify 报告。"
+
+  exploit_l4:
+    mcp_tools:
+      - none
+    required_artifact_keys:
+      - exp_plan_report
+      - exp_verify_report
+    required_state_paths:
+      - session.exp.path
+      - session.exp.status
+      - session.exp.local_verify_passed
+    prompt_contract_lines:
+      - "优先生成/更新本地 exp，可预留远程 host/port 参数。"
+      - "必须更新 state.session.exp.* 并写入 exp_plan/exp_verify 报告。"

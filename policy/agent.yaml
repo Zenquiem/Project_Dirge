@@ -1,0 +1,431 @@
+version: 1
+
+features:
+  enable_exploit: true
+  exploit_plugin: "l3_default"
+  allow_remote_exp: true
+
+automation:
+  default_max_loops: 4
+  force_reach_terminal_exploit_stage: true
+  unified_solve:
+    enabled: true
+    max_loops: 4
+  streamlined:
+    enabled: true
+  stage_order:
+    - recon
+    - ida_slice
+    - gdb_evidence
+    - exploit_l3
+    - exploit_l4
+  decision:
+    enable_adaptive_stage_order: false
+    skip_recon_if_protections_known: true
+    prefer_gdb_when_hypotheses_exist: true
+    prioritize_gdb_when_crash_unstable: true
+    prefer_exploit_when_rip_control: true
+    force_ida_after_no_progress_loops: 2
+    stop_after_no_progress_loops: 1
+    hypothesis_no_progress_drop_threshold: 2
+    max_active_hypotheses: 3
+    restrict_to_l3_on_codex_missing: true
+    strategy_route_switch:
+      enabled: true
+      no_progress_loops: 1
+      terminal_unsolved_streak: 1
+      only_when_weak_strategy: false
+      reset_no_progress_after_switch: true
+      request_hint_after_switches: 3
+      write_report: true
+      cycle:
+        - ret2win
+        - ret2libc
+        - fmtstr_got_write
+        - fmtstr_wp_fastpath
+        - direct_execve_shell
+        - direct_system_binsh
+        - js_shell_cmd_exec
+    hint_request_gate:
+      enabled: true
+      no_progress_loops: 2
+      no_new_evidence_minutes: 30
+      write_report: true
+      stop_on_trigger: false
+    blind_mode:
+      enabled: true
+      skip_static_stages: true
+      skip_mcp_health_check: true
+      prefer_protocol_semantic_probe: true
+      default_strategy_hint: js_shell_cmd_exec
+      route_switch_lock: true
+    timeout_no_evidence_gate:
+      enabled: false
+      consecutive_timeout_loops: 2
+      require_no_progress: true
+      blind_mode_only: true
+      write_report: true
+      stop_on_trigger: false
+    input_mutation:
+      enabled: false
+      max_total_inputs: 8
+      max_len: 256
+      max_seed_files: 2
+      seed_strings:
+        - "AAAA"
+        - "BBBB"
+        - "%p%p%p"
+        - "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  recovery:
+    enabled: true
+    clear_stale_stop_request_on_start: true
+    default_max_retries: 0
+    auto_continue_on_mcp_failure_stages:
+      - recon
+      - ida_slice
+    stage_max_retries:
+      recon: 1
+      ida_slice: 1
+      gdb_evidence: 1
+      exploit_l3: 2
+      exploit_l4: 5
+    stage_max_retries_by_category:
+      recon:
+        timeout: 1
+        mcp_transient: 1
+      ida_slice:
+        timeout: 1
+        mcp_transient: 1
+      exploit_l3:
+        timeout: 1
+        mcp_transient: 1
+      exploit_l4:
+        timeout: 1
+        mcp_transient: 1
+    stage_timeout_circuit:
+      enabled: false
+      stages:
+        - recon
+        - ida_slice
+      failure_categories:
+        - timeout
+        - mcp_transient
+      consecutive_failures: 1
+      cooldown_loops: 6
+      skip_only_if_terminal_in_plan: true
+      require_exploit_enabled: true
+    codex_unhealthy_cooldown:
+      enabled: false
+      stages:
+        - recon
+        - ida_slice
+      failure_categories:
+        - timeout
+        - mcp_transient
+      consecutive_failures: 1
+      cooldown_loops: 6
+      skip_only_if_terminal_in_plan: true
+      require_exploit_enabled: true
+    ida_fail_open:
+      enabled: true
+      failure_categories:
+        - timeout
+        - mcp_transient
+        - stage_runtime_error
+      write_blocker_report: true
+    backoff_base_sec: 0.8
+    backoff_cap_sec: 6.0
+  objectives:
+    enabled: true
+    prioritize_missing_stages: true
+    stop_when_target_achieved: true
+    target:
+      require_stage_completion:
+        - recon
+        - ida_slice
+        - gdb_evidence
+      require_exploit_when_enabled: true
+      require_exploit_stage: exploit_l4
+      require_capabilities_all: []
+      require_capabilities_any: []
+  capability_inference:
+    enabled: true
+    crash_stability_threshold: 2
+  exploit_stage:
+    run_codex: false
+    skip_intermediate_when_terminal: true
+    codex_disable_mcp: true
+    reuse_existing_exp: true
+  exploit_verify:
+    enabled: true
+    strict: true
+    run: true
+    verify_mode: auto
+    quick_then_full: true
+    run_timeout_sec: 7.0
+    run_strict: true
+    check_success_markers: true
+    success_markers:
+      - "__PWN_VERIFY_OK__"
+      - "flag{"
+      - "you pwned me"
+      - "remember you forever"
+      - "cyberpeace{"
+      - "ctf{"
+      - "CTF{"
+      - "FLAG{"
+    success_regexes:
+      - "flag\\{[^\\n}]{1,200}\\}"
+      - "ctf\\{[^\\n}]{1,200}\\}"
+      - "cyberpeace\\{[^\\n}]{1,200}\\}"
+    run_env_defaults:
+      # keep verify fast and stable; avoid long retry chains in autofix loops
+      PWN_SEND_DELAY_SEC: "0.08"
+      PWN_VERIFY_RECV_SEC: "0.85"
+      PWN_VERIFY_CMD_GAP_SEC: "0.06"
+      PWN_REMOTE_RETRIES: "2"
+      PWN_STAGE2_POST_DELAY_SEC: "0.06"
+      PWN_STAGE2_POST_RECV_SEC: "0.30"
+      PWN_LIBC_PROFILE: "auto"
+      PWN_REMOTE_RETRY_BACKOFF: "1.5"
+      PWN_REMOTE_RETRY_JITTER_SEC: "0.12"
+      PWN_REMOTE_RETRY_MAX_DELAY_SEC: "1.8"
+      PWN_STAGE1_POST_RECV_SEC: "0.35"
+      PWN_STAGE1_DRAIN_RECV_SEC: "0.08"
+      PWN_STAGE1_CLEAR_BUF_RECV_SEC: "0.06"
+      PWN_STAGE1_CLEAR_BUF_ROUNDS: "2"
+      PWN_STAGE1_SELFCHECK_STRICT: "1"
+      PWN_PAYLOAD_ASSERT_LEN: "1"
+      PWN_STAGE1_PARSE_LEAKS: "1"
+      PWN_LEAK_SKIP_ASCII_WINDOWS: "1"
+      PWN_LEAK_PAGE_ALIGN: "1"
+      PWN_FLAG_SCAN_LONG: "0"
+      PWN_POST_SHELL_CMDS: "pwd;ls /;cat /flag;cat flag"
+      PWN_MENU_NOISE_FILTER: "1"
+      PWN_REMOTE_PREFLIGHT: "1"
+      PWN_REMOTE_MENU_SYNC: "1"
+      PWN_EXPECT_HINTS: "$,#"
+      PWN_STRICT_MENU_SYNC: "1"
+      PWN_STRICT_MENU_SYNC_FAILFAST: "1"
+      PWN_MENU_SYNC_TIMEOUT_SEC: "0.55"
+      PWN_OFFSET_CANDIDATES: "23,24,31,32,39,40,47,48,55,56,63,64,72,76,96,100,112,120,124,128,132,136,140,144,160"
+      PWN_INPUT_ALIGN_MODE: "auto"
+      PWN_INPUT_ALIGN_SCANF_LEN: "4"
+      PWN_INPUT_ALIGN_GAP_SEC: "0.04"
+      PWN_FMT_ROUTE: "auto"
+      PWN_FMT_WP_FASTPATH: "1"
+      PWN_FMT_WP_LEAK: "%397$p"
+      PWN_FMT_WP_HHN_INDEX: "133"
+      PWN_PIVOT_OFFSETS: "0x50,0x60,0x70,0x80,0x90"
+      PWN_PIVOT_FRAME_LEN: "0xff"
+      PWN_PIVOT_TRIGGER_LEN: "0x400"
+      PWN_PIVOT_STAGE2_LEN: "0x400"
+      PWN_PIVOT_BINSH_OFF: "0x180"
+      PWN_PIVOT_PROMPT_TIMEOUT_SEC: "3.0"
+      PWN_PIVOT_REQUIRE_REMOTE_PHASED: "1"
+      PWN_PIVOT_NAME_PROMPTS: "name >,name:,name?"
+      PWN_PIVOT_TRIGGER_PROMPTS: "base64 >,base64:,data >,input >"
+      PWN_PIVOT_CONFIRM_PROMPTS: "(y/n) >,(y/n):,y/n"
+      PWN_PIVOT_CONFIRM_VALUE: "n\n"
+    python_bin: ""
+    repeat: 1
+    min_passes: 1
+  exploit_autofix:
+    enabled: true
+    run_codex_fix: true
+    until_success: true
+    force_until_success: true
+    max_attempts: 1
+    require_success: true
+    disable_mcp: true
+    reasoning_effort: medium
+    codex_timeout_sec: 40
+    timeout_backoff_sec: 8
+    max_timeout_sec: 55
+    stop_on_consecutive_timeout: 1
+    max_error_chars: 500
+    source_snippet_chars: 1800
+  exploit_rewrite:
+    enabled: true
+    until_success: true
+    max_extra_loops: 400
+    max_wall_sec: 1800
+    stop_on_same_error_streak: 0
+    stop_on_non_actionable_verify_streak: 0
+    request_hint_after_wall_sec: 600
+    stop_on_request_hint: false
+    reuse_l0_l2_without_ida: true
+    force_terminal_after_l0_timeout_loops: 1
+    force_stage_codex_after_unsolved_loops: 3
+    skip_force_stage_codex_on_timeout_error: true
+    write_report: true
+  exploit_precheck:
+    enabled: false
+    terminal_stage_only: true
+    min_unsolved_loops: 1
+    force_minimal_rewrite_after_weak_streak: 1
+    weak_strategies:
+      - fuzz_probe
+      - rip_control_probe
+  remote_prompt:
+    enabled: true
+    ask_when_local_verify_failed: false
+  remote_preflight:
+    enabled: true
+    check_on_start: true
+    timeout_sec: 2.5
+    service_read_timeout_sec: 0.9
+    disable_service_probe: false
+    stop_on_unreachable: false
+    warn_on_silent: true
+  mcp_health:
+    check_before_run: true
+    hard_preflight_enabled: true
+    hard_preflight_strict: true
+    hard_preflight_alias_probe: true
+    hard_preflight_alias_probe_timeout_sec: 3.5
+    check_before_each_stage: true
+    fail_fast_on_stage_unhealthy: true
+    functional_probe_before_run: true
+    functional_probe_on_stage_gate: true
+    functional_probe_timeout_sec: 18.0
+    functional_probe_nonfatal: false
+    enable_alias_fallback: true
+    server_aliases:
+      pyghidra-mcp:
+        - pyghidra_bridge
+      pyghidra_bridge:
+        - pyghidra-mcp
+    ida_pre_stage_self_heal: true
+    self_heal_enabled: true
+    self_heal_on_start: true
+    self_heal_on_gate_failure: true
+    self_heal_warmup_health: true
+    self_heal_warmup_timeout_sec: 6.0
+    self_heal_include_gdb: false
+    stage_gate_stages:
+      - recon
+      - ida_slice
+      - gdb_evidence
+    stage_gate_timeout_sec: 2.5
+    stage_gate_wait_for_analysis_retry: true
+    stage_gate_wait_for_analysis_retries: 2
+    stage_gate_wait_for_analysis_sec: 2.2
+    stage_gate_retry_once: false
+    stage_gate_retry_wait_sec: 0.7
+    stage_gate_retry_backoff: 1.7
+    stage_gate_max_retries: 1
+    stage_gate_self_heal_retries: 1
+    stage_gate_self_heal_retry_wait_sec: 0.8
+    strict: true
+    authority: codex_registry
+    timeout_sec: 6.0
+    required_servers:
+      - pyghidra-mcp
+      - gdb
+  hard_step:
+    enabled: false
+    direct_gdb_probe: false
+    enforce_allowed_tools: false
+    default_max_tool_calls: 8
+    blocked_tools:
+      - codex.list_mcp_resources*
+      - codex.list_mcp_resource_templates*
+    stage_max_tool_calls:
+      recon: 7
+      ida_slice: 7
+      gdb_evidence: 8
+      bundle_l0_l2: 14
+      bundle_l0_l4: 18
+  context:
+    mode: minimal
+    include_hypothesis_ids: false
+    include_mutations: false
+    include_state_digest: false
+    contract_hint_max_chars: 120
+  stop_control:
+    block_self_stop: true
+  stage_cache:
+    enabled: true
+    overwrite: false
+    stages:
+      - recon
+      - ida_slice
+      - gdb_evidence
+    exploit_profile:
+      enabled: true
+      overwrite: false
+    bundle_l0_l2:
+      enabled: false
+      require_consecutive: true
+      include_exploit_stages: false
+  cost_fuses:
+    max_codex_calls: 60
+    max_prompt_chars: 120000
+    max_wall_time_sec: 3600
+    max_autofix_rounds: 50
+    conservative_self_stop_threshold: 1
+    conservative_autofix_threshold: 0
+  acceptance:
+    enabled: false
+    max_wall_time_sec: 1200
+    max_codex_calls: 60
+    max_prompt_chars_total: 240000
+    required_terminal_stage: exploit_l4
+  fast_profile:
+    apply_by_default: true
+    max_loops: 4
+    disable_validate: true
+    disable_verifier: true
+    skip_intermediate_exploit: true
+    stage_model_reasoning_effort:
+      recon: high
+      ida_slice: high
+      gdb_evidence: high
+      bundle_l0_l2: xhigh
+      bundle_l0_l4: xhigh
+    timeout_sec:
+      recon: 14
+      ida_slice: 14
+      gdb_evidence: 60
+      exploit_l3: 50
+      exploit_l4: 90
+      bundle_l0_l2: 70
+      bundle_l0_l4: 95
+  run_validate_state_before_each_stage: false
+  run_verifier_after_each_stage: false
+  stop_on_stage_failure: true
+
+kpi:
+  enabled: true
+  paths:
+    global: artifacts/reports/kpi_latest.json
+    per_session: sessions/{session_id}/metrics.json
+
+codex:
+  bin: scripts/codex_with_mcp.sh
+  enforce_configured_bin: true
+  allow_env_codex_bin_override: false
+  model: gpt-5.3-codex
+  retries: 0
+  internal_retry_on_nonzero: false
+  default_timeout_sec: 75
+  exec_args:
+    - --skip-git-repo-check
+    - --sandbox
+    - workspace-write
+  model_reasoning_effort: xhigh
+  stage_model_reasoning_effort:
+    recon: xhigh
+    ida_slice: xhigh
+    gdb_evidence: xhigh
+    bundle_l0_l2: xhigh
+    bundle_l0_l4: xhigh
+  timeout_sec:
+    recon: 45
+    ida_slice: 55
+    gdb_evidence: 75
+    exploit_l3: 70
+    exploit_l4: 70
+    bundle_l0_l2: 120
+    bundle_l0_l4: 140

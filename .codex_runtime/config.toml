@@ -1,0 +1,46 @@
+model = "gpt-5.3-codex"
+model_reasoning_effort = "xhigh"
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T082403Z_5196"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T082527Z_9977"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T083057Z_17030"]
+trust_level = "trusted"
+
+[projects."/home/zenduk/桌面/test"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T083510Z_1153"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T083651Z_27675"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T084025Z_4022"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T085041Z_32292"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T085248Z_9127"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T090305Z_6484"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T091400Z_8537"]
+trust_level = "trusted"
+
+[projects."/home/zenduk/桌面/Project_Dirge"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T091958Z_4591"]
+trust_level = "trusted"
+
+[projects."/mnt/Project_Dirge/challenge/sess_20260215T104420Z_3367"]
+trust_level = "trusted"
+
+[notice.model_migrations]
+"gpt-5.2-codex" = "gpt-5.3-codex"

@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "challenge_dir": "challenge/demo",
+  "binary": "chall_true",
+  "max_loops": 1,
+  "allow_codex_missing": true,
+  "notes": "本地 smoke case，用于验证会话编排与产物落盘"
+}

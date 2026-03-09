@@ -1,0 +1,42 @@
+version: 1
+
+fuses:
+  per_run_timeout_sec: 180
+  per_tool_output_max_bytes: 800000
+  per_log_file_max_bytes: 2000000
+  max_stdout_lines: 5000
+  max_gdb_dump_units: 256
+
+per_challenge:
+  max_total_runs: 40
+  stage_limits:
+    max_recon_runs: 4
+    max_ida_calls: 12
+    max_gdb_runs: 16
+    max_exploit_runs: 8
+
+loop_limits:
+  max_loops: 2
+  max_new_hypotheses_per_loop: 1
+  max_gdb_runs_per_loop: 1
+  max_mutation_inputs_per_loop: 8
+
+hypothesis_policy:
+  max_active: 3
+  drop_rule:
+    max_consecutive_no_progress: 2
+    drop_on_falsified: true
+
+stability:
+  crash_repro_runs: 3
+  exploit_success_runs: 3
+
+artifacts:
+  keep_last_n_runs: 20
+  truncate_logs_bytes: 2000000
+  save_core_dumps: true
+  save_inputs: true
+
+safety:
+  allow_network: true
+  require_container: false

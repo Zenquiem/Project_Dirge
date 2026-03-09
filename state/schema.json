@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dirge.local/state.schema.json",
+  "title": "Dirge Agent State",
+  "type": "object",
+  "required": [
+    "version",
+    "project",
+    "challenge",
+    "env",
+    "protections",
+    "io_profile",
+    "capabilities",
+    "progress",
+    "artifacts_index",
+    "static_analysis",
+    "dynamic_evidence",
+    "latest_bases",
+    "summary",
+    "session"
+  ],
+  "properties": {
+    "version": { "type": ["number", "integer"] },
+    "project": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["mcp_only"] },
+        "notes": { "type": "string" },
+        "features": {
+          "type": "object",
+          "properties": {
+            "enable_exploit": { "type": "boolean" },
+            "exploit_plugin": { "type": "string" },
+            "allow_remote_exp": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "challenge": {
+      "type": "object",
+      "required": ["binary_path", "workdir"],
+      "properties": {
+        "name": { "type": "string" },
+        "binary_path": { "type": "string" },
+        "workdir": { "type": "string" },
+        "notes": { "type": "string" },
+        "import_meta": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "env": {
+      "type": "object",
+      "properties": {
+        "require_container": { "type": "boolean" },
+        "fingerprint": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "protections": {
+      "type": "object",
+      "properties": {
+        "arch": { "type": "string" },
+        "bits": { "type": ["integer", "null"] },
+        "endian": { "type": "string" },
+        "nx": { "type": ["boolean", "null"] },
+        "pie": { "type": ["boolean", "null"] },
+        "relro": { "type": "string" },
+        "canary": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "io_profile": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string" },
+        "prompt_style": { "type": "string" },
+        "expects_newline": { "type": ["boolean", "null"] },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "has_crash": { "type": "boolean" },
+        "crash_stable": { "type": "boolean" },
+        "rip_control": { "type": "string" },
+        "stack_smash_suspected": { "type": "boolean" },
+        "has_leak": { "type": "string" },
+        "write_primitive": { "type": "string" },
+        "notes": { "type": "string" },
+        "control_rip": { "type": "boolean" },
+        "offset_to_rip": { "type": "integer", "minimum": 0 },
+        "ret2win_path_verified": { "type": "boolean" },
+        "system_call_observed": { "type": "boolean" },
+        "exploit_success": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "progress": {
+      "type": "object",
+      "required": ["stage", "counters"],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "anyOf": [
+            { "enum": ["init", "recon", "ida_slice", "gdb_evidence"] },
+            { "pattern": "^exploit_l[0-9]+$" }
+          ]
+        },
+        "run_seq": { "type": "integer", "minimum": 0 },
+        "loop_seq": { "type": "integer", "minimum": 0 },
+        "decision": {
+          "type": "object",
+          "properties": {
+            "adaptive_stage_order": { "type": "boolean" },
+            "no_progress_loops": { "type": "integer", "minimum": 0 },
+            "last_stage_plan": { "type": "array", "items": { "type": "string" } },
+            "last_decision_report": { "type": "string" },
+            "last_active_hypothesis_ids": { "type": "array", "items": { "type": "string" } },
+            "last_loop_had_progress": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        },
+        "objectives": {
+          "type": "object",
+          "properties": {
+            "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "target_achieved": { "type": "boolean" },
+            "required_stages": { "type": "array", "items": { "type": "string" } },
+            "missing_stages": { "type": "array", "items": { "type": "string" } },
+            "blockers": { "type": "array", "items": { "type": "string" } },
+            "last_objective_report": { "type": "string" },
+            "last_eval_utc": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "last_updated_utc": { "type": "string" },
+        "counters": {
+          "type": "object",
+          "required": ["total_runs", "recon_runs", "ida_calls", "gdb_runs", "exploit_runs"],
+          "properties": {
+            "total_runs": { "type": "integer", "minimum": 0 },
+            "recon_runs": { "type": "integer", "minimum": 0 },
+            "ida_calls": { "type": "integer", "minimum": 0 },
+            "gdb_runs": { "type": "integer", "minimum": 0 },
+            "exploit_runs": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "artifacts_index": {
+      "type": "object",
+      "properties": {
+        "runs": { "type": "array" },
+        "latest": {
+          "type": "object",
+          "properties": {
+            "run_id": { "type": "string" },
+            "paths": { "type": "object" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "session": {
+      "type": "object",
+      "required": ["session_id", "status", "exp"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "created_utc": { "type": "string" },
+        "status": { "type": "string" },
+        "codex_enabled": { "type": "boolean" },
+        "codex_pid": { "type": ["integer", "null"] },
+        "challenge_source_dir": { "type": "string" },
+        "challenge_work_dir": { "type": "string" },
+        "conversation_log": { "type": "string" },
+        "prompt_file": { "type": "string" },
+        "exp": {
+          "type": "object",
+          "required": ["path", "status"],
+          "properties": {
+            "path": { "type": "string" },
+            "status": {
+              "type": "string",
+              "enum": [
+                "enabled",
+                "stub_generated",
+                "updated",
+                "disabled_by_user",
+                "error"
+              ]
+            },
+            "generated_utc": { "type": "string" },
+            "last_error": { "type": "string" },
+            "strategy": { "type": "string" },
+            "plan_report": { "type": "string" },
+            "local_verify_passed": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "static_analysis": {
+      "type": "object",
+      "properties": {
+        "entrypoints": { "type": "array" },
+        "suspects": { "type": "array" },
+        "hypotheses": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "properties": {
+              "hypothesis_id": { "type": "string" },
+              "type": { "type": "string" },
+              "status": { "type": "string" },
+              "score": { "type": "integer" },
+              "confidence": { "type": "number" },
+              "no_progress_loops": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "dynamic_evidence": {
+      "type": "object",
+      "required": ["inputs", "evidence"],
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input_id": { "type": "string" },
+              "path": { "type": "string" },
+              "origin": { "type": "string" },
+              "loop": { "type": "integer", "minimum": 0 },
+              "stage": { "type": "string" },
+              "size": { "type": "integer", "minimum": 0 },
+              "created_utc": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "evidence_id": { "type": "string" },
+              "input_id": { "type": "string" },
+              "gdb": { "type": "object" },
+              "mappings": { "type": "object" },
+              "paths": { "type": "object" },
+              "created_utc": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cluster_id": { "type": "string" },
+              "signal": { "type": "string" },
+              "location": { "type": "string" },
+              "count": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "latest_bases": {
+      "type": "object",
+      "required": ["pie_base", "libc_base"],
+      "properties": {
+        "pie_base": { "type": "string" },
+        "libc_base": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "current_best_guess": { "type": "string" },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "next_actions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

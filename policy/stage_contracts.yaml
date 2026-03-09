@@ -1,0 +1,117 @@
+version: 1
+
+stages:
+  recon:
+    must_equal:
+      progress.stage: recon
+    required_present:
+      - protections.pie
+      - progress.counters.recon_runs
+      - progress.counters.total_runs
+      - summary.next_actions
+      - progress.objectives.score
+      - progress.objectives.target_achieved
+      - artifacts_index.latest.paths.recon_log
+      - artifacts_index.latest.paths.recon_report
+    required_non_empty:
+      - protections.arch
+      - artifacts_index.latest.paths.recon_log
+      - artifacts_index.latest.paths.recon_report
+    at_least:
+      progress.counters.recon_runs: 1
+      progress.counters.total_runs: 1
+
+  ida_slice:
+    must_equal:
+      progress.stage: ida_slice
+    required_present:
+      - progress.counters.ida_calls
+      - progress.counters.total_runs
+      - static_analysis.entrypoints
+      - static_analysis.suspects
+      - static_analysis.hypotheses
+      - artifacts_index.latest.paths.ida_slice_json
+      - artifacts_index.latest.paths.ida_slice_md
+      - artifacts_index.latest.paths.ida_raw_log
+    required_non_empty:
+      - artifacts_index.latest.paths.ida_slice_json
+      - artifacts_index.latest.paths.ida_slice_md
+      - artifacts_index.latest.paths.ida_raw_log
+    any_of_non_empty:
+      - [static_analysis.suspects, static_analysis.hypotheses]
+    at_least:
+      progress.counters.ida_calls: 1
+      progress.counters.total_runs: 1
+    max_items:
+      static_analysis.hypotheses: 3
+
+  gdb_evidence:
+    must_equal:
+      progress.stage: gdb_evidence
+    required_present:
+      - progress.counters.gdb_runs
+      - progress.counters.total_runs
+      - dynamic_evidence.inputs
+      - dynamic_evidence.evidence
+      - dynamic_evidence.clusters
+      - latest_bases.pie_base
+      - capabilities.has_crash
+      - capabilities.crash_stable
+      - artifacts_index.latest.paths.gdb_raw
+      - artifacts_index.latest.paths.gdb_summary
+      - artifacts_index.latest.paths.gdb_clusters
+      - artifacts_index.latest.paths.capabilities_report
+    required_non_empty:
+      - latest_bases.pie_base
+      - artifacts_index.latest.paths.gdb_raw
+      - artifacts_index.latest.paths.gdb_summary
+      - artifacts_index.latest.paths.capabilities_report
+    any_of_non_empty:
+      - [dynamic_evidence.evidence]
+    at_least:
+      progress.counters.gdb_runs: 1
+      progress.counters.total_runs: 1
+
+  exploit_l3:
+    must_equal:
+      progress.stage: exploit_l3
+    required_present:
+      - progress.counters.exploit_runs
+      - progress.counters.total_runs
+      - session.exp.path
+      - session.exp.status
+      - session.exp.strategy
+      - session.exp.plan_report
+      - session.exp.local_verify_passed
+      - artifacts_index.latest.paths.exp_plan_report
+      - artifacts_index.latest.paths.exp_verify_report
+    required_non_empty:
+      - session.exp.path
+      - session.exp.status
+      - session.exp.strategy
+      - session.exp.plan_report
+    at_least:
+      progress.counters.exploit_runs: 1
+      progress.counters.total_runs: 1
+
+  exploit_l4:
+    must_equal:
+      progress.stage: exploit_l4
+    required_present:
+      - progress.counters.exploit_runs
+      - progress.counters.total_runs
+      - session.exp.path
+      - session.exp.status
+      - session.exp.strategy
+      - session.exp.plan_report
+      - session.exp.local_verify_passed
+      - artifacts_index.latest.paths.exp_plan_report
+      - artifacts_index.latest.paths.exp_verify_report
+    required_non_empty:
+      - session.exp.path
+      - session.exp.status
+      - session.exp.strategy
+      - session.exp.plan_report
+    at_least:
+      progress.counters.exploit_runs: 1
+      progress.counters.total_runs: 1
