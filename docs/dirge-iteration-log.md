@@ -60,3 +60,11 @@ Phase 1 — audit and baseline tightening
 - Added regression coverage in `tests/test_sync_state_meta.py` to exercise the CLI entrypoint and confirm remote-verification status promotion still coexists with retained competition reasons
 - Verification: `python3 -m unittest discover -s tests -q` → `72 tests`, passing; `python3 -m compileall core scripts tests` passing
 - Why this matters: keeps downstream status/meta consumers from losing *why* a competition target was considered achieved, which is important for evidence review, dashboards, and post-run debugging
+
+## 2026-03-10 21:51 CST — Receipt path validation fixed for underscore stage names
+
+- Audited `core/state_utils.py` receipt-path identity parsing after noticing the canonical filename format includes stage names like `gdb_evidence` and `exploit_l4`
+- Fixed `_parse_receipt_path_expectations()` so `stage_receipt_<session>_<loop>_<stage>.json` correctly parses stages containing underscores, instead of silently skipping path/session/loop consistency checks for those receipts
+- Added regression coverage in `tests/test_state_utils.py` to prove `exploit_l4_receipt` now trips session/loop mismatch errors just like single-token stages already did
+- Verification: `python3 -m unittest discover -s tests -q` → `73 tests`, passing; `python3 -m compileall core scripts tests` passing
+- Why this matters: closes a false-negative hole in the evidence/verification flow where later-stage receipts could drift across sessions/loops without being flagged, despite earlier hardening intended to catch exactly that

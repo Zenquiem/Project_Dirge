@@ -71,6 +71,20 @@ class StateUtilsTests(unittest.TestCase):
             self.assertTrue(any("required receipt session mismatch" in err for err in errors))
             self.assertTrue(any("required receipt loop mismatch" in err for err in errors))
 
+    def test_validate_stage_runner_spec_reports_receipt_identity_mismatch_for_stage_names_with_underscores(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_rel = "artifacts/reports/stage_receipt_sess_alpha_03_exploit_l4.json"
+            artifact_abs = os.path.join(tmp, artifact_rel)
+            os.makedirs(os.path.dirname(artifact_abs), exist_ok=True)
+            with open(artifact_abs, "w", encoding="utf-8") as f:
+                json.dump({"stage": "exploit_l4", "session_id": "sess_beta", "loop": 4}, f)
+
+            state = {"artifacts_index": {"latest": {"paths": {"exploit_l4_receipt": artifact_rel}}}}
+            spec = {"required_artifact_keys": ["exploit_l4_receipt"]}
+            errors = validate_stage_runner_spec(state, spec, root_dir=tmp)
+            self.assertTrue(any("required receipt session mismatch" in err for err in errors))
+            self.assertTrue(any("required receipt loop mismatch" in err for err in errors))
+
     def test_validate_stage_runner_spec_reports_missing_requirements(self) -> None:
         state = {"artifacts_index": {"latest": {"paths": {}}}, "dynamic_evidence": {"evidence": []}}
         spec = {

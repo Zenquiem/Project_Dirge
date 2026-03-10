@@ -37,7 +37,7 @@ def _expected_receipt_stage_for_key(key: str) -> str:
 
 def _parse_receipt_path_expectations(abs_path: str) -> Tuple[str, str, int]:
     name = os.path.basename(str(abs_path or "").strip())
-    match = re.match(r"^stage_receipt_(.+)_(\d+)_([^_]+)\.json$", name)
+    match = re.match(r"^stage_receipt_(.+)_(\d+)_(.+)\.json$", name)
     if not match:
         return "", "", -1
     session_id, loop_str, stage = match.groups()
