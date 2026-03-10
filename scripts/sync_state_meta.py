@@ -179,10 +179,14 @@ def main() -> int:
         if objectives:
             remote = sess.get("remote", {}) if isinstance(sess.get("remote", {}), dict) else {}
             competition_ok = bool(objectives.get("competition_target_achieved", False) or remote.get("last_remote_ok", False))
+            reasons = objectives.get("competition_reasons", [])
+            if not isinstance(reasons, list):
+                reasons = []
             obj_meta = {
                 "score": int(objectives.get("score", 0) or 0),
                 "target_achieved": bool(objectives.get("target_achieved", False)),
                 "competition_target_achieved": competition_ok,
+                "competition_reasons": list(reasons),
                 "missing_stages": objectives.get("missing_stages", []),
                 "blockers": objectives.get("blockers", []),
                 "last_objective_report": str(objectives.get("last_objective_report", "")).strip(),

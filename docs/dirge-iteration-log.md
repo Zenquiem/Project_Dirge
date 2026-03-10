@@ -52,3 +52,11 @@ Phase 1 — audit and baseline tightening
 - Added regression coverage in `tests/test_state_utils.py` for stale/cross-session receipt aliasing where the path points at one run but the JSON payload belongs to another
 - Verification: `python3 -m unittest discover -s tests -q` and `python3 -m compileall core scripts tests`
 - Why this matters: reduces false-positive verification when `artifacts_index.latest.paths.*_receipt` drifts across sessions/loops during retries, recovery, or manual repair flows
+
+## 2026-03-10 21:42 CST — Meta sync objective reasons aligned across code paths
+
+- Audited the two meta-sync paths: in-process helper `scripts/session_state_sync.py` and CLI sync `scripts/sync_state_meta.py`
+- Fixed CLI sync drift so `progress.objectives.competition_reasons` is preserved in `sessions/<sid>/meta.json.objective`, matching the in-process path instead of silently dropping evidence/verification rationale
+- Added regression coverage in `tests/test_sync_state_meta.py` to exercise the CLI entrypoint and confirm remote-verification status promotion still coexists with retained competition reasons
+- Verification: `python3 -m unittest discover -s tests -q` → `72 tests`, passing; `python3 -m compileall core scripts tests` passing
+- Why this matters: keeps downstream status/meta consumers from losing *why* a competition target was considered achieved, which is important for evidence review, dashboards, and post-run debugging
