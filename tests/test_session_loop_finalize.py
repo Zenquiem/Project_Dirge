@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 
 from session_loop_finalize import apply_loop_decision_state, evaluate_loop_stop
 

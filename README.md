@@ -59,11 +59,32 @@ python3 scripts/run_session.py --allow-codex-missing
 
 ## 测试
 
-当前测试文件：`tests/test_session_orchestrators.py`
+快速跑全部单元测试：
+
+```bash
+python3 -m unittest discover -s tests -q
+```
+
+如果只想跑核心编排测试：
 
 ```bash
 python3 -m unittest tests.test_session_orchestrators -q
 ```
+
+## 开发依赖
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+```
+
+可选检查：
+
+```bash
+ruff check .
+python3 -m compileall core scripts tests
+```
+
+仓库已附带 GitHub Actions CI：push / pull request 时会自动执行 `ruff check .` 与 `python -m unittest discover -s tests -q`。
 
 ---
 
