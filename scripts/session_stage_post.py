@@ -7,6 +7,89 @@ import os
 from typing import Any, Callable, Dict, List
 
 
+def _compact_stage_evidence(stage_evidence: Any, *, shorten_text_fn: Callable[[str, int], str]) -> Dict[str, Any]:
+    if not isinstance(stage_evidence, dict):
+        return {}
+
+    summary: Dict[str, Any] = {}
+    int_keys = (
+        "event_count",
+        "stage1_attempts",
+        "stage1_eof_attempts",
+        "stage1_success_proxy_attempts",
+        "stage1_post_recv_raw_len_max",
+        "invalid_option_count",
+        "wrong_choice_count",
+        "menu_prompt_hits",
+    )
+    for key in int_keys:
+        value = stage_evidence.get(key)
+        if isinstance(value, bool):
+            continue
+        try:
+            if value is not None:
+                summary[key] = int(value)
+        except Exception:
+            continue
+
+    rate = stage_evidence.get("stage1_success_proxy_rate", None)
+    if isinstance(rate, (int, float)) and not isinstance(rate, bool):
+        summary["stage1_success_proxy_rate"] = round(float(rate), 4)
+
+    last_stage = str(stage_evidence.get("last_stage", "")).strip()
+    if last_stage:
+        summary["last_stage"] = shorten_text_fn(last_stage, 80)
+
+    if "single_byte_selfcheck_ok" in stage_evidence:
+        summary["single_byte_selfcheck_ok"] = stage_evidence.get("single_byte_selfcheck_ok", None)
+
+    leak_values = stage_evidence.get("leak_values_hex_tail", [])
+    if isinstance(leak_values, list) and leak_values:
+        summary["leak_values_hex_tail"] = [shorten_text_fn(str(v), 40) for v in leak_values[-4:] if str(v).strip()]
+
+    addr_snapshot = stage_evidence.get("failure_addr_snapshot_tail", {})
+    if isinstance(addr_snapshot, dict) and addr_snapshot:
+        compact_snapshot = {
+            key: shorten_text_fn(str(addr_snapshot.get(key, "")).strip(), 60)
+            for key in ("exit", "prog", "libc", "envp", "ret")
+            if str(addr_snapshot.get(key, "")).strip()
+        }
+        if compact_snapshot:
+            summary["failure_addr_snapshot_tail"] = compact_snapshot
+
+    events_tail = stage_evidence.get("events_tail", [])
+    if isinstance(events_tail, list) and events_tail:
+        compact_events: List[Dict[str, Any]] = []
+        for raw_event in events_tail[-4:]:
+            if not isinstance(raw_event, dict):
+                continue
+            compact_event: Dict[str, Any] = {}
+            for key in ("stage", "event"):
+                value = str(raw_event.get(key, "")).strip()
+                if value:
+                    compact_event[key] = shorten_text_fn(value, 80)
+            attempt = raw_event.get("attempt", None)
+            if isinstance(attempt, int):
+                compact_event["attempt"] = attempt
+            elif isinstance(attempt, str) and attempt.strip().isdigit():
+                compact_event["attempt"] = int(attempt.strip())
+            for key in ("ok", "eof"):
+                if key in raw_event:
+                    compact_event[key] = bool(raw_event.get(key, False))
+            for key in ("raw_len", "pivot_off", "idx"):
+                value = raw_event.get(key, None)
+                if isinstance(value, int):
+                    compact_event[key] = value
+                elif isinstance(value, str) and value.strip():
+                    compact_event[key] = shorten_text_fn(value, 80)
+            if compact_event:
+                compact_events.append(compact_event)
+        if compact_events:
+            summary["events_tail"] = compact_events
+
+    return summary
+
+
 def update_stage_timing_state(
     *,
     state_path: str,
@@ -252,7 +335,10 @@ def build_failure_context(
                 if isinstance(verify_detail.get("runtime_findings", []), list)
                 else []
             )[:4],
-            "stage_evidence": verify_detail.get("stage_evidence", {}),
+            "stage_evidence": _compact_stage_evidence(
+                verify_detail.get("stage_evidence", {}),
+                shorten_text_fn=shorten_text_fn,
+            ),
         }
     return ctx
 

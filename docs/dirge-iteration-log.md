@@ -77,3 +77,11 @@ Phase 1 — audit and baseline tightening
 - Added regression coverage in `tests/test_sync_state_meta.py` for challenge metadata creation/population while keeping the earlier competition-reason path intact
 - Verification: `python3 -m unittest tests.test_sync_state_meta -q`, `python3 -m unittest discover -s tests -q` → `74 tests`, and `python3 -m compileall core scripts tests` passing
 - Why this matters: removes another state/meta divergence where non-orchestrator syncs could silently drop binary/workdir/source provenance, weakening evidence review and session introspection
+
+## 2026-03-10 22:18 CST — Failure-context verifier evidence compacted
+
+- Audited `scripts/session_stage_post.py` failure reporting path used after stage execution / verifier handoff
+- Compacted embedded verifier `stage_evidence` before writing failure-context JSON so reports keep stable summary fields and a short event tail instead of copying arbitrarily large/raw verifier payloads verbatim
+- Added regression coverage in `tests/test_session_stage_post.py` to lock the compacted schema and prove truncation/signal preservation for verifier findings
+- Verification: `python3 -m unittest tests.test_session_stage_post -q`, `python3 -m unittest discover -s tests -q` → `75 tests`, and `python3 -m compileall core scripts tests` passing
+- Why this matters: keeps evidence/verification flow reviewable during exploit failures, reduces report bloat, and makes downstream failure triage consume a more stable verifier summary
