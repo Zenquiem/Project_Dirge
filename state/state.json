@@ -10,32 +10,35 @@
     }
   },
   "challenge": {
-    "name": "ezmqtt",
-    "binary_path": "challenge/sess_20260308T095929Z_98d3105227f3/pwn",
-    "workdir": "challenge/sess_20260308T095929Z_98d3105227f3",
+    "name": "bench_local_gdb",
+    "binary_path": "challenge/bench_local_gdb/chall",
+    "workdir": "challenge/bench_local_gdb",
     "notes": "session-managed",
     "import_meta": {
-      "session_id": "sess_20260308T095929Z_98d3105227f3",
-      "source_dir": "/home/zenduk/桌面/desctf/ezmqtt",
-      "import_mode": "copied",
-      "imported_utc": "2026-03-08T09:59:29Z",
+      "session_id": "bench_demo_local_gdb_20260310T194122Z",
+      "source_dir": "/home/ubuntu/.openclaw/workspace/Project_Dirge/challenge/bench_local_gdb",
+      "import_mode": "inplace",
+      "imported_utc": "2026-03-10T19:41:23Z",
       "binary_selection_note": "",
-      "blind_mode": false
+      "blind_mode": false,
+      "local_recon": true
     },
     "runtime_guard": {
-      "report": "artifacts/reports/runtime_abi_guard_sess_20260308T095929Z_98d3105227f3.json",
+      "report": "artifacts/reports/runtime_abi_guard_bench_demo_local_gdb_20260310T194122Z.json",
       "selected_mismatch": false,
       "binary_bits": 64,
       "binary_arch": "amd64",
-      "selected_libc_bits": 64,
-      "selected_libc_arch": "amd64",
+      "selected_libc_bits": 0,
+      "selected_libc_arch": "",
       "mismatched_libc_count": 0,
       "libc_quarantine": []
     },
     "fastpath": {
       "direct_system_binsh": false
     },
-    "binary_sha256": "aaf248780cb91df03fc95e841883a87a099505504e7e0e7be1f1fdbfb22ddf22"
+    "binary_sha256": "5d57825d22938c4ac04e4125ec9c213b59606f3c844820970c380b967199acb7",
+    "binary_name": "chall",
+    "analysis_ready": true
   },
   "env": {
     "require_container": false,
@@ -56,50 +59,88 @@
     }
   },
   "protections": {
-    "arch": "",
+    "arch": "amd64",
     "bits": null,
     "endian": "",
-    "nx": null,
-    "pie": null,
-    "relro": "",
-    "canary": null
+    "nx": true,
+    "pie": true,
+    "relro": "partial",
+    "canary": false
   },
   "io_profile": {
     "mode": "",
     "prompt_style": "",
     "expects_newline": null,
-    "notes": ""
+    "notes": "",
+    "imports": [
+      "Symbol",
+      "table",
+      "dynsym",
+      "contains",
+      "entries",
+      "Num",
+      "Value",
+      "Size",
+      "Type",
+      "Bind",
+      "Vis",
+      "Ndx",
+      "Name",
+      "NOTYPE",
+      "LOCAL",
+      "DEFAULT",
+      "UND",
+      "FUNC",
+      "GLOBAL",
+      "__libc_start_main",
+      "strncmp",
+      "WEAK",
+      "_ITM_deregisterTMCloneTable",
+      "puts",
+      "fgets",
+      "__gmon_start__",
+      "_ITM_registerTMCloneTable",
+      "__cxa_finalize",
+      "OBJECT",
+      "stdin",
+      "symtab",
+      "FILE"
+    ],
+    "input_functions": [
+      "fgets"
+    ],
+    "sink_functions": [
+      "puts"
+    ]
   },
   "capabilities": {
-    "has_crash": false,
+    "has_crash": true,
     "crash_stable": false,
-    "rip_control": "unknown",
-    "stack_smash_suspected": false,
+    "rip_control": "yes",
+    "stack_smash_suspected": true,
     "has_leak": "unknown",
     "write_primitive": "unknown",
     "notes": "",
-    "control_rip": false,
+    "control_rip": true,
     "offset_to_rip": 0,
     "ret2win_path_verified": false,
     "system_call_observed": false,
     "exploit_success": false
   },
   "progress": {
-    "stage": "exploit_l4",
-    "run_seq": 3,
-    "loop_seq": 3,
+    "stage": "gdb_evidence",
+    "run_seq": 2,
+    "loop_seq": 1,
     "decision": {
       "adaptive_stage_order": false,
       "no_progress_loops": 0,
       "last_stage_plan": [
         "recon",
-        "ida_slice",
-        "gdb_evidence",
-        "exploit_l4"
+        "gdb_evidence"
       ],
-      "last_decision_report": "artifacts/reports/decision_sess_20260308T095929Z_98d3105227f3_03.json",
+      "last_decision_report": "artifacts/reports/decision_bench_demo_local_gdb_20260310T194122Z_01.json",
       "last_active_hypothesis_ids": [],
-      "last_loop_had_progress": false,
+      "last_loop_had_progress": true,
       "timeout_circuit": {
         "enabled": false,
         "stages": [
@@ -113,8 +154,8 @@
         "consecutive_failures": 1,
         "cooldown_loops": 6,
         "failure_streak": {
-          "ida_slice": 0,
-          "recon": 0
+          "recon": 0,
+          "ida_slice": 0
         },
         "skip_remaining_loops": {}
       },
@@ -131,8 +172,8 @@
         "consecutive_failures": 1,
         "cooldown_loops": 6,
         "failure_streak": {
-          "ida_slice": 0,
-          "recon": 0
+          "recon": 0,
+          "ida_slice": 0
         },
         "skip_remaining_loops": {}
       },
@@ -142,7 +183,7 @@
         "no_progress_loops": 1,
         "terminal_unsolved_streak": 1,
         "weak_only": false,
-        "switch_count": 2,
+        "switch_count": 0,
         "cycle": [
           "ret2win",
           "ret2libc",
@@ -152,15 +193,15 @@
           "direct_system_binsh",
           "js_shell_cmd_exec"
         ],
-        "last_applied": true,
-        "last_report": "artifacts/reports/strategy_route_switch_sess_20260308T095929Z_98d3105227f3_03.json"
+        "last_applied": false,
+        "last_report": ""
       },
       "hint_request_gate": {
         "enabled": true,
         "no_progress_loops": 2,
         "no_new_evidence_sec": 1800.0,
-        "last_no_new_evidence_sec": 405.358,
-        "rewrite_elapsed_sec": 201.426,
+        "last_no_new_evidence_sec": 0.0,
+        "rewrite_elapsed_sec": 0.0,
         "rewrite_request_hint_after_wall_sec": 600.0,
         "rewrite_triggered": false,
         "last_triggered": false,
@@ -174,172 +215,102 @@
         "require_no_progress": true,
         "blind_mode_only": true,
         "stop_on_trigger": false,
-        "loop_rc124_failures": 2,
+        "loop_rc124_failures": 0,
         "timeout_streak": 0,
         "last_triggered": false,
         "last_report": ""
       }
     },
     "objectives": {
-      "score": 0,
+      "score": 63,
       "target_achieved": false,
       "required_stages": [
         "recon",
         "ida_slice",
-        "gdb_evidence",
-        "exploit_l4"
+        "gdb_evidence"
       ],
       "missing_stages": [
-        "recon",
-        "ida_slice",
-        "gdb_evidence",
-        "exploit_l4"
+        "ida_slice"
       ],
       "blockers": [
-        "stage incomplete: recon",
-        "stage incomplete: ida_slice",
-        "stage incomplete: gdb_evidence",
-        "stage incomplete: exploit_l4"
+        "stage incomplete: ida_slice"
       ],
-      "last_objective_report": "artifacts/reports/objective_sess_20260308T095929Z_98d3105227f3_03.json",
-      "last_eval_utc": "2026-03-08T10:06:49Z",
+      "last_objective_report": "artifacts/reports/objective_bench_demo_local_gdb_20260310T194122Z_01.json",
+      "last_eval_utc": "2026-03-10T19:41:24Z",
       "competition_target_achieved": false,
       "competition_reasons": []
     },
     "counters": {
-      "total_runs": 3,
-      "recon_runs": 0,
+      "total_runs": 2,
+      "recon_runs": 1,
       "ida_calls": 0,
-      "gdb_runs": 0,
-      "exploit_runs": 3
+      "gdb_runs": 1,
+      "exploit_runs": 0
     },
-    "last_updated_utc": "2026-03-08T10:06:44Z",
+    "last_updated_utc": "2026-03-10T19:41:24Z",
     "timing": {
       "stages": {
         "recon": {
-          "loop": 3,
+          "loop": 1,
           "stage": "recon",
-          "started_utc": "2026-03-08T10:03:33Z",
-          "ended_utc": "2026-03-08T10:04:22Z",
-          "duration_ms": 49100,
-          "attempts": 2,
-          "ok": false,
+          "started_utc": "2026-03-10T19:41:23Z",
+          "ended_utc": "2026-03-10T19:41:23Z",
+          "duration_ms": 17,
+          "attempts": 1,
+          "ok": true,
           "history": [
             {
               "loop": 1,
               "stage": "recon",
-              "started_utc": "2026-03-08T10:00:12Z",
-              "ended_utc": "2026-03-08T10:01:01Z",
-              "duration_ms": 49027,
-              "attempts": 2,
-              "ok": false
-            },
-            {
-              "loop": 3,
-              "stage": "recon",
-              "started_utc": "2026-03-08T10:03:33Z",
-              "ended_utc": "2026-03-08T10:04:22Z",
-              "duration_ms": 49100,
-              "attempts": 2,
-              "ok": false
+              "started_utc": "2026-03-10T19:41:23Z",
+              "ended_utc": "2026-03-10T19:41:23Z",
+              "duration_ms": 17,
+              "attempts": 1,
+              "ok": true
             }
           ]
         },
         "gdb_evidence": {
-          "loop": 3,
+          "loop": 1,
           "stage": "gdb_evidence",
-          "started_utc": "2026-03-08T10:04:22Z",
-          "ended_utc": "2026-03-08T10:06:44Z",
-          "duration_ms": 141705,
-          "attempts": 2,
-          "ok": false,
-          "history": [
-            {
-              "loop": 1,
-              "stage": "gdb_evidence",
-              "started_utc": "2026-03-08T10:01:01Z",
-              "ended_utc": "2026-03-08T10:03:23Z",
-              "duration_ms": 141476,
-              "attempts": 2,
-              "ok": false
-            },
-            {
-              "loop": 3,
-              "stage": "gdb_evidence",
-              "started_utc": "2026-03-08T10:04:22Z",
-              "ended_utc": "2026-03-08T10:06:44Z",
-              "duration_ms": 141705,
-              "attempts": 2,
-              "ok": false
-            }
-          ]
-        },
-        "exploit_l4": {
-          "loop": 3,
-          "stage": "exploit_l4",
-          "started_utc": "2026-03-08T10:06:44Z",
-          "ended_utc": "2026-03-08T10:06:49Z",
-          "duration_ms": 5296,
+          "started_utc": "2026-03-10T19:41:23Z",
+          "ended_utc": "2026-03-10T19:41:24Z",
+          "duration_ms": 386,
           "attempts": 1,
-          "ok": false,
+          "ok": true,
           "history": [
             {
               "loop": 1,
-              "stage": "exploit_l4",
-              "started_utc": "2026-03-08T10:03:23Z",
-              "ended_utc": "2026-03-08T10:03:28Z",
-              "duration_ms": 5146,
+              "stage": "gdb_evidence",
+              "started_utc": "2026-03-10T19:41:23Z",
+              "ended_utc": "2026-03-10T19:41:24Z",
+              "duration_ms": 386,
               "attempts": 1,
-              "ok": false
-            },
-            {
-              "loop": 2,
-              "stage": "exploit_l4",
-              "started_utc": "2026-03-08T10:03:28Z",
-              "ended_utc": "2026-03-08T10:03:33Z",
-              "duration_ms": 4962,
-              "attempts": 1,
-              "ok": false
-            },
-            {
-              "loop": 3,
-              "stage": "exploit_l4",
-              "started_utc": "2026-03-08T10:06:44Z",
-              "ended_utc": "2026-03-08T10:06:49Z",
-              "duration_ms": 5296,
-              "attempts": 1,
-              "ok": false
+              "ok": true
             }
           ]
         }
       },
-      "last_stage": "exploit_l4",
-      "last_updated_utc": "2026-03-08T10:06:49Z"
+      "last_stage": "gdb_evidence",
+      "last_updated_utc": "2026-03-10T19:41:24Z"
     },
     "stage_durations": {
       "recon": {
-        "last_duration_ms": 49100,
-        "last_duration_sec": 49.1,
-        "last_loop": 3,
-        "last_ok": false
+        "last_duration_ms": 17,
+        "last_duration_sec": 0.017,
+        "last_loop": 1,
+        "last_ok": true
       },
       "gdb_evidence": {
-        "last_duration_ms": 141705,
-        "last_duration_sec": 141.705,
-        "last_loop": 3,
-        "last_ok": false
-      },
-      "exploit_l4": {
-        "last_duration_ms": 5296,
-        "last_duration_sec": 5.296,
-        "last_loop": 3,
-        "last_ok": false
+        "last_duration_ms": 386,
+        "last_duration_sec": 0.386,
+        "last_loop": 1,
+        "last_ok": true
       }
     },
     "stage_duration_totals_ms": {
-      "recon": 98127,
-      "gdb_evidence": 283181,
-      "exploit_l4": 15404
+      "recon": 17,
+      "gdb_evidence": 386
     }
   },
   "artifacts_index": {
@@ -347,30 +318,27 @@
     "latest": {
       "run_id": "",
       "paths": {
-        "runtime_abi_guard_report": "artifacts/reports/runtime_abi_guard_sess_20260308T095929Z_98d3105227f3.json",
-        "runtime_env_profile": "sessions/sess_20260308T095929Z_98d3105227f3/runtime/runtime_env.auto.sh",
-        "binary_path_guard_report": "artifacts/reports/binary_path_guard_sess_20260308T095929Z_98d3105227f3.json",
-        "quick_strategy_report": "artifacts/reports/quick_strategy_sess_20260308T095929Z_98d3105227f3.json",
-        "mcp_hard_preflight_report": "artifacts/reports/mcp_hard_preflight_sess_20260308T095929Z_98d3105227f3.json",
-        "binary_identity_report": "artifacts/reports/binary_identity_sess_20260308T095929Z_98d3105227f3_preflight.json",
-        "mcp_self_heal_report": "artifacts/reports/mcp_self_heal_sess_20260308T095929Z_98d3105227f3_00_preflight.json",
-        "mcp_self_heal_preflight": "artifacts/reports/mcp_self_heal_sess_20260308T095929Z_98d3105227f3_00_preflight.json",
-        "capabilities_report": "artifacts/reports/capabilities_sess_20260308T095929Z_98d3105227f3_04.json",
-        "decision_report": "artifacts/reports/decision_sess_20260308T095929Z_98d3105227f3_04.json",
-        "mcp_gate_report": "artifacts/reports/mcp_gate_sess_20260308T095929Z_98d3105227f3_03_gdb_evidence_01.json",
-        "mcp_gate_recon": "artifacts/reports/mcp_gate_sess_20260308T095929Z_98d3105227f3_03_recon_01.json",
-        "stage_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_exploit_l4.json",
-        "recon_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_recon.json",
-        "mcp_gate_gdb_evidence": "artifacts/reports/mcp_gate_sess_20260308T095929Z_98d3105227f3_03_gdb_evidence_01.json",
-        "gdb_evidence_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_gdb_evidence.json",
-        "exp_local_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_local.py",
-        "exp_remote_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_remote.py",
-        "exp_plan_report": "artifacts/reports/exp_plan_sess_20260308T095929Z_98d3105227f3.json",
-        "exp_verify_report": "artifacts/reports/exp_verify_sess_20260308T095929Z_98d3105227f3_03.json",
-        "exploit_l4_receipt": "artifacts/reports/stage_receipt_sess_20260308T095929Z_98d3105227f3_03_exploit_l4.json",
-        "objective_report": "artifacts/reports/objective_sess_20260308T095929Z_98d3105227f3_03.json",
-        "strategy_route_switch_report": "artifacts/reports/strategy_route_switch_sess_20260308T095929Z_98d3105227f3_03.json",
-        "exploit_rewrite_report": "artifacts/reports/exploit_rewrite_sess_20260308T095929Z_98d3105227f3.json"
+        "runtime_abi_guard_report": "artifacts/reports/runtime_abi_guard_bench_demo_local_gdb_20260310T194122Z.json",
+        "binary_path_guard_report": "artifacts/reports/binary_path_guard_bench_demo_local_gdb_20260310T194122Z.json",
+        "quick_strategy_report": "artifacts/reports/quick_strategy_bench_demo_local_gdb_20260310T194122Z.json",
+        "binary_identity_report": "artifacts/reports/binary_identity_bench_demo_local_gdb_20260310T194122Z_preflight.json",
+        "capabilities_report": "artifacts/reports/capabilities_bench_demo_local_gdb_20260310T194122Z_01.json",
+        "decision_report": "artifacts/reports/decision_bench_demo_local_gdb_20260310T194122Z_01.json",
+        "recon_log": "artifacts/logs/run_session_bench_demo_local_gdb_20260310T194122Z_01_recon.log",
+        "recon_report": "artifacts/reports/recon_report_bench_demo_local_gdb_20260310T194122Z_01_local.json",
+        "cache_recon": "artifacts/cache/5d57825d22938c4ac04e4125ec9c213b59606f3c844820970c380b967199acb7_recon.json",
+        "stage_receipt": "artifacts/reports/stage_receipt_bench_demo_local_gdb_20260310T194122Z_01_gdb_evidence.json",
+        "recon_receipt": "artifacts/reports/stage_receipt_bench_demo_local_gdb_20260310T194122Z_01_recon.json",
+        "gdb_clusters": "artifacts/reports/bench_demo_local_gdb_20260310T194122Z_crash_clusters.json",
+        "gdb_raw": "artifacts/reports/gdb_raw_bench_demo_local_gdb_20260310T194122Z_01_local.txt",
+        "gdb_summary": "artifacts/reports/gdb_summary_bench_demo_local_gdb_20260310T194122Z_01_local.json",
+        "cache_gdb_evidence": "artifacts/cache/5d57825d22938c4ac04e4125ec9c213b59606f3c844820970c380b967199acb7_gdb_evidence.json",
+        "gdb_evidence_receipt": "artifacts/reports/stage_receipt_bench_demo_local_gdb_20260310T194122Z_01_gdb_evidence.json",
+        "objective_report": "artifacts/reports/objective_bench_demo_local_gdb_20260310T194122Z_01.json",
+        "cost_fuse_report": "artifacts/reports/cost_fuse_bench_demo_local_gdb_20260310T194122Z.json",
+        "acceptance_report": "artifacts/reports/acceptance_bench_demo_local_gdb_20260310T194122Z.json",
+        "timeline_report": "artifacts/reports/timeline_bench_demo_local_gdb_20260310T194122Z.json",
+        "timing_report": "artifacts/reports/timing_bench_demo_local_gdb_20260310T194122Z.json"
       }
     }
   },
@@ -384,37 +352,79 @@
     "dead": []
   },
   "dynamic_evidence": {
-    "inputs": [],
-    "evidence": [],
-    "clusters": []
+    "inputs": [
+      {
+        "input_id": "inp_bench_demo_local_gdb_20260310T194122Z_01_local_gdb",
+        "path": "artifacts/tmp/bench_demo_local_gdb_20260310T194122Z_01_gdb_stdin.bin",
+        "origin": "local_gdb_fallback",
+        "loop": 1,
+        "stage": "gdb_evidence",
+        "size": 6,
+        "stdin_source": "text-env",
+        "created_utc": "2026-03-10T19:41:24Z"
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "ev_bench_demo_local_gdb_20260310T194122Z_01_local_gdb",
+        "input_id": "inp_bench_demo_local_gdb_20260310T194122Z_01_local_gdb",
+        "gdb": {
+          "signal": "SIGSEGV",
+          "rip": "0x555555555224",
+          "pc_offset": "0x1224",
+          "offset_source": "local_gdb_fallback"
+        },
+        "mappings": {
+          "pie_base": "0x555555554000"
+        },
+        "paths": {
+          "gdb_raw": "artifacts/reports/gdb_raw_bench_demo_local_gdb_20260310T194122Z_01_local.txt",
+          "stdin": "artifacts/tmp/bench_demo_local_gdb_20260310T194122Z_01_gdb_stdin.bin"
+        },
+        "created_utc": "2026-03-10T19:41:24Z"
+      }
+    ],
+    "clusters": [
+      {
+        "cluster_id": "c_0001",
+        "signal": "SIGSEGV",
+        "location": "0x1224",
+        "input_id": "inp_bench_demo_local_gdb_20260310T194122Z_01_local_gdb",
+        "count": 1,
+        "evidence_ids": [
+          "ev_bench_demo_local_gdb_20260310T194122Z_01_local_gdb"
+        ]
+      }
+    ]
   },
   "latest_bases": {
-    "pie_base": "",
+    "pie_base": "0x555555554000",
     "libc_base": ""
   },
   "summary": {
-    "current_best_guess": "",
+    "current_best_guess": "top_cluster signal=SIGSEGV location=0x1224 count=1",
     "blockers": [],
     "next_actions": [
-      "exploit_l4"
+      "local recon completed without Codex runtime",
+      "switch to host Codex CLI or continue with local gdb evidence if available"
     ]
   },
   "session": {
-    "session_id": "sess_20260308T095929Z_98d3105227f3",
-    "created_utc": "2026-03-08T09:59:29Z",
-    "status": "stopped",
-    "codex_enabled": true,
+    "session_id": "bench_demo_local_gdb_20260310T194122Z",
+    "created_utc": "2026-03-10T19:41:23Z",
+    "status": "finished",
+    "codex_enabled": false,
     "codex_pid": null,
-    "challenge_source_dir": "/home/zenduk/桌面/desctf/ezmqtt",
-    "challenge_work_dir": "challenge/sess_20260308T095929Z_98d3105227f3",
-    "conversation_log": "sessions/sess_20260308T095929Z_98d3105227f3/conversation.log",
-    "prompt_file": "sessions/sess_20260308T095929Z_98d3105227f3/prompt.txt",
+    "challenge_source_dir": "/home/ubuntu/.openclaw/workspace/Project_Dirge/challenge/bench_local_gdb",
+    "challenge_work_dir": "challenge/bench_local_gdb",
+    "conversation_log": "sessions/bench_demo_local_gdb_20260310T194122Z/conversation.log",
+    "prompt_file": "sessions/bench_demo_local_gdb_20260310T194122Z/prompt.txt",
     "exp": {
-      "path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp.py",
-      "status": "updated",
-      "generated_utc": "2026-03-08T10:08:21Z",
-      "strategy": "fmtstr_got_write",
-      "plan_report": "artifacts/reports/exp_plan_sess_20260308T095929Z_98d3105227f3.json",
+      "path": "sessions/bench_demo_local_gdb_20260310T194122Z/exp/exp.py",
+      "status": "stub_generated",
+      "generated_utc": "2026-03-10T19:41:23Z",
+      "strategy": "fuzz_probe",
+      "plan_report": "artifacts/reports/exp_plan_bench_demo_local_gdb_20260310T194122Z.json",
       "local_verify_passed": false,
       "verify_env_defaults": {
         "PWN_SEND_DELAY_SEC": "0.08",
@@ -464,26 +474,8 @@
         "PWN_PIVOT_TRIGGER_PROMPTS": "base64 >,base64:,data >,input >",
         "PWN_PIVOT_CONFIRM_PROMPTS": "(y/n) >,(y/n):,y/n",
         "PWN_PIVOT_CONFIRM_VALUE": "n",
-        "PWN_LOADER": "/mnt/Project_Dirge/challenge/sess_20260308T095929Z_98d3105227f3/ld-linux-x86-64.so.2",
-        "PWN_LIBC_PATH": "/mnt/Project_Dirge/challenge/sess_20260308T095929Z_98d3105227f3/libc.so.6",
-        "PWN_LD_LIBRARY_PATH": "/mnt/Project_Dirge/challenge/sess_20260308T095929Z_98d3105227f3",
-        "PWN_FORCE_LOADER": "1",
-        "PWN_LOCAL_PUTS_OFF": "0x80e50",
-        "PWN_LOCAL_READ_OFF": "0x1147d0",
-        "PWN_LOCAL_SYSTEM_OFF": "0x50d70",
-        "PWN_LOCAL_BINSH_OFF": "0x1d8678",
         "PWN_RUNTIME_GUARD_MISMATCH": "0"
-      },
-      "runtime_env_profile": "sessions/sess_20260308T095929Z_98d3105227f3/runtime/runtime_env.auto.sh",
-      "manual_lock_active": false,
-      "preserve_existing_effective": true,
-      "local_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_local.py",
-      "remote_path": "sessions/sess_20260308T095929Z_98d3105227f3/exp/exp_remote.py",
-      "verify_report": "artifacts/reports/exp_verify_sess_20260308T095929Z_98d3105227f3_03.json",
-      "strategy_hint": "fmtstr_got_write",
-      "rewrite_force_reason": "weak exp strategy remained unsolved: strategy=fuzz_probe, hint=none",
-      "strategy_switch_reason": "no progress + terminal unsolved streak: no_progress_loops=1, terminal_unsolved_streak=3",
-      "strategy_switch_utc": "2026-03-08T10:06:49Z"
+      }
     },
     "remote": {
       "ask_pending": false,
@@ -499,6 +491,130 @@
       "last_remote_report": "",
       "last_remote_ok": false
     },
-    "last_error": "no codex pid found"
+    "last_error": "configured codex runner unavailable: scripts/codex_with_mcp.sh (refuse fallback to plain codex to avoid MCP misconfiguration)"
+  },
+  "recon": {
+    "mode": "local_recon_fallback",
+    "loop": 1,
+    "report": "artifacts/reports/recon_report_bench_demo_local_gdb_20260310T194122Z_01_local.json",
+    "log": "artifacts/logs/run_session_bench_demo_local_gdb_20260310T194122Z_01_recon.log",
+    "binary_path": "challenge/bench_local_gdb/chall",
+    "binary_name": "chall",
+    "analysis_ready": true,
+    "protections": {
+      "arch": "amd64",
+      "bits": null,
+      "endian": "",
+      "nx": true,
+      "pie": true,
+      "relro": "partial",
+      "canary": false
+    },
+    "imports_sample": [
+      "Symbol",
+      "table",
+      "dynsym",
+      "contains",
+      "entries",
+      "Num",
+      "Value",
+      "Size",
+      "Type",
+      "Bind",
+      "Vis",
+      "Ndx",
+      "Name",
+      "NOTYPE",
+      "LOCAL",
+      "DEFAULT",
+      "UND",
+      "FUNC",
+      "GLOBAL",
+      "__libc_start_main",
+      "strncmp",
+      "WEAK",
+      "_ITM_deregisterTMCloneTable",
+      "puts",
+      "fgets",
+      "__gmon_start__",
+      "_ITM_registerTMCloneTable",
+      "__cxa_finalize",
+      "OBJECT",
+      "stdin",
+      "symtab",
+      "FILE"
+    ],
+    "io_profile": {
+      "mode": "",
+      "prompt_style": "",
+      "expects_newline": null,
+      "notes": "",
+      "imports": [
+        "Symbol",
+        "table",
+        "dynsym",
+        "contains",
+        "entries",
+        "Num",
+        "Value",
+        "Size",
+        "Type",
+        "Bind",
+        "Vis",
+        "Ndx",
+        "Name",
+        "NOTYPE",
+        "LOCAL",
+        "DEFAULT",
+        "UND",
+        "FUNC",
+        "GLOBAL",
+        "__libc_start_main",
+        "strncmp",
+        "WEAK",
+        "_ITM_deregisterTMCloneTable",
+        "puts",
+        "fgets",
+        "__gmon_start__",
+        "_ITM_registerTMCloneTable",
+        "__cxa_finalize",
+        "OBJECT",
+        "stdin",
+        "symtab",
+        "FILE"
+      ],
+      "input_functions": [
+        "fgets"
+      ],
+      "sink_functions": [
+        "puts"
+      ]
+    },
+    "updated_utc": "2026-03-10T19:41:23Z",
+    "metadata": {
+      "file": "/home/ubuntu/.openclaw/workspace/Project_Dirge/challenge/bench_local_gdb/chall: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=4ebd39dab9052c6d7bd274fc467446db63ef39e2, for GNU/Linux 3.2.0, not stripped",
+      "readelf_header": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 \n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              DYN (Position-Independent Executable file)\n  Machine:                           Advanced Micro Devices X86-64\n  Version:                           0x1\n  Entry point address:               0x10a0\n  Start of program headers:          64 (bytes into file)\n  Start of section headers:          14104 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           56 (bytes)\n  Number of program headers:         13\n  Size of section headers:           64 (bytes)\n  Number of section headers:         31\n  Section header string table index: 30"
+    }
+  },
+  "gdb": {
+    "mode": "local_gdb_fallback",
+    "loop": 1,
+    "report": "artifacts/reports/gdb_summary_bench_demo_local_gdb_20260310T194122Z_01_local.json",
+    "log": "artifacts/logs/run_session_bench_demo_local_gdb_20260310T194122Z_01_gdb_evidence.log",
+    "raw": "artifacts/reports/gdb_raw_bench_demo_local_gdb_20260310T194122Z_01_local.txt",
+    "stdin": "artifacts/tmp/bench_demo_local_gdb_20260310T194122Z_01_gdb_stdin.bin",
+    "stdin_source": "text-env",
+    "binary_path": "challenge/bench_local_gdb/chall",
+    "signal": "SIGSEGV",
+    "rip": "0x555555555224",
+    "pie_base": "0x555555554000",
+    "pc_offset": "0x1224",
+    "gdb_rc": 0,
+    "analysis_ready": true,
+    "updated_utc": "2026-03-10T19:41:24Z",
+    "input_id": "inp_bench_demo_local_gdb_20260310T194122Z_01_local_gdb",
+    "evidence_id": "ev_bench_demo_local_gdb_20260310T194122Z_01_local_gdb",
+    "cluster_report": "artifacts/reports/bench_demo_local_gdb_20260310T194122Z_crash_clusters.json",
+    "capabilities_report": "artifacts/reports/capabilities_bench_demo_local_gdb_20260310T194122Z_01.json"
   }
 }

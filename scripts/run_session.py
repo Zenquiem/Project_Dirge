@@ -2065,6 +2065,539 @@ def state_digest(state: Dict[str, Any]) -> str:
     )
 
 
+def choose_missing_codex_stage_order(
+    *,
+    stage_order: List[str],
+    state_path: str,
+    terminal_stage: str,
+    prefer_local_recon: bool = True,
+    restrict_to_l3: bool = True,
+) -> Tuple[List[str], str]:
+    ordered = [str(x).strip() for x in stage_order if str(x).strip()]
+    if not ordered:
+        return [], ""
+
+    if prefer_local_recon:
+        try:
+            state = load_json(state_path)
+        except Exception:
+            state = {}
+        challenge = state.get("challenge", {}) if isinstance(state.get("challenge", {}), dict) else {}
+        binary_rel = str(challenge.get("binary_path", "")).strip()
+        binary_abs = binary_rel if os.path.isabs(binary_rel) else os.path.abspath(os.path.join(ROOT_DIR, binary_rel))
+        has_local_binary = bool(binary_rel and os.path.isfile(binary_abs))
+        if has_local_binary and ("recon" in ordered):
+            prefer_local_gdb = bool(os.environ.get("DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING", "").strip() == "1")
+            has_gdb_seed = any(
+                str(os.environ.get(name, "")).strip()
+                for name in ("DIRGE_LOCAL_GDB_STDIN_TEXT", "DIRGE_LOCAL_GDB_STDIN_HEX", "DIRGE_LOCAL_GDB_STDIN_FILE")
+            )
+            if prefer_local_gdb and has_gdb_seed and ("gdb_evidence" in ordered) and shutil.which("gdb"):
+                return ["recon", "gdb_evidence"], "local_recon_gdb"
+            return ["recon"], "local_recon_only"
+
+    if restrict_to_l3:
+        fallback_stage = terminal_stage or "exploit_l3"
+        filtered = [x for x in ordered if x == fallback_stage]
+        if filtered:
+            return filtered, "terminal_only"
+    return ordered, "keep_full_plan"
+
+
+def _update_recon_state_summary(
+    state: Dict[str, Any],
+    *,
+    mode: str,
+    loop_idx: int,
+    report_rel: str,
+    log_rel: str,
+    protections: Dict[str, Any],
+    imports: List[str],
+    io_profile: Dict[str, Any],
+    binary_path: str,
+    binary_name: str,
+    analysis_ready: bool,
+    metadata: Dict[str, Any] | None = None,
+    extras: Dict[str, Any] | None = None,
+) -> None:
+    recon = state.setdefault("recon", {})
+    recon.update(
+        {
+            "mode": str(mode or "").strip(),
+            "loop": int(loop_idx),
+            "report": str(report_rel or "").strip(),
+            "log": str(log_rel or "").strip(),
+            "binary_path": str(binary_path or "").strip(),
+            "binary_name": str(binary_name or "").strip(),
+            "analysis_ready": bool(analysis_ready),
+            "protections": dict(protections or {}),
+            "imports_sample": list(imports or [])[:32],
+            "io_profile": dict(io_profile or {}),
+            "updated_utc": utc_now(),
+        }
+    )
+    if isinstance(metadata, dict) and metadata:
+        recon["metadata"] = dict(metadata)
+    if isinstance(extras, dict) and extras:
+        recon.update(extras)
+
+
+
+def _update_gdb_state_summary(
+    state: Dict[str, Any],
+    *,
+    mode: str,
+    loop_idx: int,
+    report_rel: str,
+    log_rel: str,
+    raw_rel: str,
+    stdin_rel: str,
+    stdin_source: str,
+    binary_path: str,
+    signal: str,
+    rip: str,
+    pie_base: str,
+    pc_offset: str,
+    gdb_rc: int,
+    analysis_ready: bool = True,
+    extras: Dict[str, Any] | None = None,
+) -> None:
+    gdb_state = state.setdefault("gdb", {})
+    gdb_state.update(
+        {
+            "mode": str(mode or "").strip(),
+            "loop": int(loop_idx),
+            "report": str(report_rel or "").strip(),
+            "log": str(log_rel or "").strip(),
+            "raw": str(raw_rel or "").strip(),
+            "stdin": str(stdin_rel or "").strip(),
+            "stdin_source": str(stdin_source or "").strip(),
+            "binary_path": str(binary_path or "").strip(),
+            "signal": str(signal or "").strip(),
+            "rip": str(rip or "").strip(),
+            "pie_base": str(pie_base or "").strip(),
+            "pc_offset": str(pc_offset or "").strip(),
+            "gdb_rc": int(gdb_rc),
+            "analysis_ready": bool(analysis_ready),
+            "updated_utc": utc_now(),
+        }
+    )
+    if isinstance(extras, dict) and extras:
+        gdb_state.update(extras)
+
+
+
+def run_local_recon_fallback(
+    *,
+    state_path: str,
+    session_id: str,
+    loop_idx: int,
+    log_abs: str,
+    log_rel: str,
+) -> Tuple[bool, str, str]:
+    state = load_json(state_path)
+    challenge = state.get("challenge", {}) if isinstance(state.get("challenge", {}), dict) else {}
+    bin_rel = str(challenge.get("binary_path", "")).strip()
+    if not bin_rel:
+        return False, "", "binary_path_missing"
+    bin_abs = bin_rel if os.path.isabs(bin_rel) else os.path.abspath(os.path.join(ROOT_DIR, bin_rel))
+    if not os.path.isfile(bin_abs):
+        return False, "", f"binary_missing:{bin_rel}"
+
+    meta: Dict[str, Any] = {
+        "file": "",
+        "readelf_header": "",
+    }
+    if shutil.which("file"):
+        rc_file, out_file, err_file = _run_capture_quick(["file", bin_abs], timeout_sec=3.0)
+        meta["file"] = (out_file or err_file or "").strip()[:4000]
+        if rc_file != 0 and (not meta["file"]):
+            meta["file"] = f"file_rc={rc_file}"
+    if shutil.which("readelf"):
+        rc_hdr, out_hdr, err_hdr = _run_capture_quick(["readelf", "-h", bin_abs], timeout_sec=3.0)
+        meta["readelf_header"] = (out_hdr or err_hdr or "").strip()[:12000]
+        if rc_hdr != 0 and (not meta["readelf_header"]):
+            meta["readelf_header"] = f"readelf_rc={rc_hdr}"
+
+    imports: List[str] = []
+    if shutil.which("readelf"):
+        rc_imp, out_imp, _ = _run_capture_quick(["readelf", "-Ws", bin_abs], timeout_sec=3.0)
+        if rc_imp == 0 and out_imp:
+            imports = re.findall(r"\b([A-Za-z_][A-Za-z0-9_@.]*)\b", out_imp)
+            imports = [x.split("@@", 1)[0].split("@", 1)[0] for x in imports]
+    if (not imports) and shutil.which("nm"):
+        rc_nm, out_nm, _ = _run_capture_quick(["nm", "-D", bin_abs], timeout_sec=3.0)
+        if rc_nm == 0 and out_nm:
+            imports = re.findall(r"\b([A-Za-z_][A-Za-z0-9_@.]*)\b", out_nm)
+            imports = [x.split("@@", 1)[0].split("@", 1)[0] for x in imports]
+    imports = list(dict.fromkeys([x for x in imports if x and (x[0].isalpha() or x[0] == "_")]))[:128]
+
+    hdr = str(meta.get("readelf_header", "") or "")
+    hdr_low = hdr.lower()
+    file_low = str(meta.get("file", "") or "").lower()
+    arch = "unknown"
+    if ("x86-64" in hdr) or ("x86-64" in file_low) or ("advanced micro devices x86-64" in hdr_low):
+        arch = "amd64"
+    elif ("80386" in hdr) or ("intel 80386" in hdr_low):
+        arch = "i386"
+    pie = ("type:                              dyn" in hdr_low) or ("shared object" in file_low)
+    nx = "unknown"
+    if "gnu_stack" in hdr_low:
+        nx = True if re.search(r"gnu_stack.*\brw\b(?!x)", hdr_low) else False
+    relro = "unknown"
+    if shutil.which("readelf"):
+        rc_seg, out_seg, _ = _run_capture_quick(["readelf", "-W", "-l", bin_abs], timeout_sec=3.0)
+        if rc_seg == 0 and out_seg:
+            seg_low = out_seg.lower()
+            if "gnu_relro" in seg_low:
+                relro = "partial"
+                if "bind_now" in seg_low:
+                    relro = "full"
+            if "gnu_stack" in seg_low:
+                nx = True if re.search(r"gnu_stack\s+0x[0-9a-f]+\s+0x[0-9a-f]+\s+0x[0-9a-f]+\s+0x[0-9a-f]+\s+0x[0-9a-f]+\s+rw\s", seg_low) else nx
+    canary = "__stack_chk_fail" in imports
+
+    protections = state.setdefault("protections", {})
+    protections["arch"] = arch
+    protections["pie"] = bool(pie)
+    protections["canary"] = bool(canary)
+    protections["nx"] = nx
+    protections["relro"] = relro
+
+    io_profile = state.setdefault("io_profile", {})
+    io_profile["imports"] = imports[:32]
+    io_profile["input_functions"] = [x for x in imports if x in {"read", "gets", "fgets", "scanf", "__isoc99_scanf"}]
+    io_profile["sink_functions"] = [x for x in imports if x in {"system", "puts", "printf", "write", "puts", "execl", "execve"}]
+
+    challenge["binary_name"] = str(challenge.get("binary_name", "")).strip() or os.path.basename(bin_abs)
+    challenge["analysis_ready"] = True
+    challenge.setdefault("import_meta", {})["local_recon"] = True
+    state["challenge"] = challenge
+    state.setdefault("summary", {})["next_actions"] = [
+        "local recon completed without Codex runtime",
+        "switch to host Codex CLI or continue with local gdb evidence if available",
+    ]
+    prog = state.setdefault("progress", {})
+    obj = prog.setdefault("objectives", {})
+    obj["score"] = max(int(obj.get("score", 0) or 0), 1)
+
+    report_rel = f"artifacts/reports/recon_report_{session_id}_{loop_idx:02d}_local.json"
+    report_abs = os.path.join(ROOT_DIR, report_rel)
+    os.makedirs(os.path.dirname(report_abs), exist_ok=True)
+    doc = {
+        "generated_utc": utc_now(),
+        "session_id": session_id,
+        "loop": int(loop_idx),
+        "mode": "local_recon_fallback",
+        "binary_path": bin_rel,
+        "binary_name": challenge.get("binary_name", ""),
+        "protections": protections,
+        "imports_sample": imports[:32],
+        "metadata": meta,
+        "source_log": log_rel,
+    }
+    with open(report_abs, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+
+    append_file(log_abs, "[run_session] local recon fallback completed\n")
+    _update_recon_state_summary(
+        state,
+        mode="local_recon_fallback",
+        loop_idx=loop_idx,
+        report_rel=report_rel,
+        log_rel=log_rel,
+        protections=protections,
+        imports=imports,
+        io_profile=io_profile,
+        binary_path=bin_rel,
+        binary_name=str(challenge.get("binary_name", "") or ""),
+        analysis_ready=bool(challenge.get("analysis_ready", False)),
+        metadata=meta,
+    )
+    latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
+    latest["recon_log"] = log_rel
+    latest["recon_report"] = report_rel
+    save_json(state_path, state)
+    return True, report_rel, ""
+
+
+
+
+def _parse_gdb_signal(text: str) -> str:
+    raw = str(text or "")
+    m = re.search(r"Program received signal\s+([A-Z0-9]+)", raw)
+    if m:
+        return str(m.group(1)).strip()
+    m = re.search(r"signal\s+([A-Z0-9]+)", raw, re.IGNORECASE)
+    if m:
+        return str(m.group(1)).strip().upper()
+    return ""
+
+
+def _parse_gdb_register_hex(text: str, *names: str) -> str:
+    raw = str(text or "")
+    for name in names:
+        if not str(name or "").strip():
+            continue
+        m = re.search(rf"\b{re.escape(str(name))}\s+(0x[0-9a-fA-F]+)", raw)
+        if m:
+            return str(m.group(1)).strip()
+    return ""
+
+
+def _parse_gdb_binary_mapping_base(text: str, binary_path: str) -> str:
+    raw = str(text or "")
+    bin_path = os.path.abspath(str(binary_path or "").strip())
+    if not raw or not bin_path:
+        return ""
+    bin_name = os.path.basename(bin_path)
+    for line in raw.splitlines():
+        if (bin_path not in line) and (bin_name not in line):
+            continue
+        m = re.search(r"0x([0-9a-fA-F]+)", line)
+        if m:
+            return "0x" + str(m.group(1)).lower()
+        toks = line.split()
+        if toks:
+            tok0 = toks[0].strip()
+            if re.fullmatch(r"[0-9a-fA-F]+", tok0):
+                return "0x" + tok0.lower()
+            if re.fullmatch(r"0x[0-9a-fA-F]+", tok0):
+                return tok0.lower()
+    return ""
+
+
+def _hex_sub(a: str, b: str) -> str:
+    try:
+        av = int(str(a or "0"), 16)
+        bv = int(str(b or "0"), 16)
+    except Exception:
+        return ""
+    if av < bv:
+        return ""
+    return hex(av - bv)
+
+
+def _select_local_gdb_stdin() -> Tuple[bytes, str]:
+    stdin_file = str(os.environ.get("DIRGE_LOCAL_GDB_STDIN_FILE", "")).strip()
+    if stdin_file:
+        try:
+            with open(stdin_file, "rb") as f:
+                return f.read(), f"file:{stdin_file}"
+        except Exception as e:
+            raise RuntimeError(f"gdb_stdin_file_unreadable:{e}") from e
+
+    stdin_hex = str(os.environ.get("DIRGE_LOCAL_GDB_STDIN_HEX", "")).strip()
+    if stdin_hex:
+        cleaned = re.sub(r"[^0-9a-fA-F]", "", stdin_hex)
+        if (not cleaned) or (len(cleaned) % 2 != 0):
+            raise RuntimeError("gdb_stdin_hex_invalid")
+        try:
+            return bytes.fromhex(cleaned), "hex-env"
+        except Exception as e:
+            raise RuntimeError(f"gdb_stdin_hex_invalid:{e}") from e
+
+    if "DIRGE_LOCAL_GDB_STDIN_TEXT" in os.environ:
+        return os.environ.get("DIRGE_LOCAL_GDB_STDIN_TEXT", "").encode("utf-8"), "text-env"
+
+    return b"\n", "default-newline"
+
+
+def run_local_gdb_fallback(
+    *,
+    state_path: str,
+    session_id: str,
+    loop_idx: int,
+    log_abs: str,
+    log_rel: str,
+) -> Tuple[bool, str, str]:
+    state = load_json(state_path)
+    challenge = state.get("challenge", {}) if isinstance(state.get("challenge", {}), dict) else {}
+    bin_rel = str(challenge.get("binary_path", "")).strip()
+    if not bin_rel:
+        return False, "", "binary_path_missing"
+    bin_abs = bin_rel if os.path.isabs(bin_rel) else os.path.abspath(os.path.join(ROOT_DIR, bin_rel))
+    if not os.path.isfile(bin_abs):
+        return False, "", f"binary_missing:{bin_rel}"
+    if not shutil.which("gdb"):
+        return False, "", "gdb_unavailable"
+
+    try:
+        stdin_bytes, stdin_source = _select_local_gdb_stdin()
+    except RuntimeError as e:
+        return False, "", str(e)
+
+    stdin_rel = f"artifacts/tmp/{session_id}_{loop_idx:02d}_gdb_stdin.bin"
+    stdin_abs = os.path.join(ROOT_DIR, stdin_rel)
+    os.makedirs(os.path.dirname(stdin_abs), exist_ok=True)
+    with open(stdin_abs, "wb") as f:
+        f.write(stdin_bytes)
+
+    gdb_cmd = ["gdb", "-q", "-nx", "-batch"]
+    for ex in (
+        "set pagination off",
+        "set confirm off",
+        f"run < {stdin_abs}",
+        "info registers rip eip pc",
+        "bt 8",
+        "info proc mappings",
+    ):
+        gdb_cmd.extend(["-ex", ex])
+    gdb_cmd.extend(["--args", bin_abs])
+
+    rc_gdb, out_gdb, err_gdb = _run_capture_quick(gdb_cmd, timeout_sec=8.0)
+    combined = "\n".join([x for x in [out_gdb, err_gdb] if str(x or "").strip()])
+    append_file(log_abs, f"[run_session] local gdb fallback rc={rc_gdb}\n")
+    if combined:
+        append_file(log_abs, combined[:16000] + ("\n...[truncated]\n" if len(combined) > 16000 else "\n"))
+
+    signal = _parse_gdb_signal(combined)
+    rip = _parse_gdb_register_hex(combined, "rip", "eip", "pc")
+    pie_base = _parse_gdb_binary_mapping_base(combined, bin_abs)
+    pc_offset = _hex_sub(rip, pie_base) if rip and pie_base else ""
+    if not signal:
+        return False, "", "gdb_no_crash_signal"
+    if not pie_base:
+        return False, "", "gdb_missing_binary_mapping"
+
+    raw_rel = f"artifacts/reports/gdb_raw_{session_id}_{loop_idx:02d}_local.txt"
+    raw_abs = os.path.join(ROOT_DIR, raw_rel)
+    os.makedirs(os.path.dirname(raw_abs), exist_ok=True)
+    with open(raw_abs, "w", encoding="utf-8") as f:
+        f.write(combined)
+
+    dynamic = state.setdefault("dynamic_evidence", {})
+    inputs = dynamic.setdefault("inputs", [])
+    evidence = dynamic.setdefault("evidence", [])
+    input_id = f"inp_{session_id}_{loop_idx:02d}_local_gdb"
+    evidence_id = f"ev_{session_id}_{loop_idx:02d}_local_gdb"
+    inputs.append({
+        "input_id": input_id,
+        "path": stdin_rel,
+        "origin": "local_gdb_fallback",
+        "loop": int(loop_idx),
+        "stage": "gdb_evidence",
+        "size": len(stdin_bytes),
+        "stdin_source": stdin_source,
+        "created_utc": utc_now(),
+    })
+    evidence.append({
+        "evidence_id": evidence_id,
+        "input_id": input_id,
+        "gdb": {
+            "signal": signal,
+            "rip": rip,
+            "pc_offset": pc_offset,
+            "offset_source": "local_gdb_fallback",
+        },
+        "mappings": {"pie_base": pie_base},
+        "paths": {"gdb_raw": raw_rel, "stdin": stdin_rel},
+        "created_utc": utc_now(),
+    })
+
+    latest_bases = state.setdefault("latest_bases", {})
+    latest_bases["pie_base"] = pie_base
+    caps = state.setdefault("capabilities", {})
+    caps["has_crash"] = True
+    caps["crash_stable"] = True
+
+    summary_rel = f"artifacts/reports/gdb_summary_{session_id}_{loop_idx:02d}_local.json"
+    summary_abs = os.path.join(ROOT_DIR, summary_rel)
+    with open(summary_abs, "w", encoding="utf-8") as f:
+        json.dump({
+            "generated_utc": utc_now(),
+            "session_id": session_id,
+            "loop": int(loop_idx),
+            "mode": "local_gdb_fallback",
+            "binary_path": bin_rel,
+            "input_path": stdin_rel,
+            "stdin_source": stdin_source,
+            "signal": signal,
+            "rip": rip,
+            "pie_base": pie_base,
+            "pc_offset": pc_offset,
+            "gdb_rc": rc_gdb,
+            "source_log": log_rel,
+        }, f, ensure_ascii=False, indent=2)
+
+    cluster_rel, _clusters = write_clusters(state, session_id)
+    inf = infer_capabilities(state, {})
+    cap_report_rel = write_capability_report(root_dir=ROOT_DIR, session_id=session_id, loop_idx=loop_idx, inf=inf)
+    _update_gdb_state_summary(
+        state,
+        mode="local_gdb_fallback",
+        loop_idx=loop_idx,
+        report_rel=summary_rel,
+        log_rel=log_rel,
+        raw_rel=raw_rel,
+        stdin_rel=stdin_rel,
+        stdin_source=stdin_source,
+        binary_path=bin_rel,
+        signal=signal,
+        rip=rip,
+        pie_base=pie_base,
+        pc_offset=pc_offset,
+        gdb_rc=rc_gdb,
+        analysis_ready=True,
+        extras={
+            "input_id": input_id,
+            "evidence_id": evidence_id,
+            "cluster_report": cluster_rel,
+            "capabilities_report": cap_report_rel,
+        },
+    )
+    latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
+    latest["gdb_raw"] = raw_rel
+    latest["gdb_summary"] = summary_rel
+    latest["gdb_clusters"] = cluster_rel
+    latest["capabilities_report"] = cap_report_rel
+    save_json(state_path, state)
+    return True, summary_rel, ""
+
+def adjust_loop_budget_for_missing_codex(
+    *,
+    allow_codex_missing: bool,
+    codex_available: bool,
+    enable_exploit: bool,
+    terminal_stage: str,
+    loop_start: int,
+    base_max_loops: int,
+    exploit_rewrite_enabled: bool,
+    exploit_rewrite_until_success: bool,
+    exploit_rewrite_extra_loops: int,
+    missing_codex_extra_loops_cap: int = 1,
+) -> Dict[str, Any]:
+    effective_until_success = bool(exploit_rewrite_until_success)
+    effective_extra_loops = max(0, int(exploit_rewrite_extra_loops or 0))
+    note = ""
+
+    if (
+        allow_codex_missing
+        and (not codex_available)
+        and enable_exploit
+        and bool(str(terminal_stage or "").strip())
+        and exploit_rewrite_enabled
+        and effective_until_success
+    ):
+        effective_until_success = False
+        effective_extra_loops = min(effective_extra_loops, max(0, int(missing_codex_extra_loops_cap or 0)))
+        note = (
+            "codex missing with --allow-codex-missing: bound exploit rewrite loop "
+            f"(extra_loops<={effective_extra_loops}, until_success=off)"
+        )
+
+    loop_end = int(loop_start) + max(0, int(base_max_loops or 0)) + effective_extra_loops
+    if exploit_rewrite_enabled and effective_until_success and enable_exploit and bool(str(terminal_stage or "").strip()):
+        loop_end = max(loop_end, int(loop_start) + EXPLOIT_REWRITE_UNTIL_SUCCESS_LOOP_CAP)
+
+    return {
+        "loop_end": int(loop_end),
+        "exploit_rewrite_until_success": bool(effective_until_success),
+        "exploit_rewrite_extra_loops": int(effective_extra_loops),
+        "note": note,
+    }
+
+
 def make_cache_hit_artifacts(state: Dict[str, Any], session_id: str, loop_idx: int, stage: str, cache_rel: str) -> None:
     latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
     if stage == "recon":
@@ -2901,6 +3434,21 @@ def try_recover_recon_from_log(
     with open(report_abs, "w", encoding="utf-8") as f:
         json.dump(report_doc, f, ensure_ascii=False, indent=2)
 
+    _update_recon_state_summary(
+        state,
+        mode="hardstep_log_recovery",
+        loop_idx=loop_idx,
+        report_rel=report_rel,
+        log_rel=log_rel,
+        protections=protections,
+        imports=import_names,
+        io_profile=io_profile,
+        binary_path=bin_rel,
+        binary_name=canonical_binary_name or str(challenge.get("binary_name", "") or ""),
+        analysis_ready=bool(binary_analyzed),
+        metadata=meta,
+        extras={"imports_recovered": bool(imports_recovered)},
+    )
     latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
     latest["recon_log"] = log_rel
     latest["recon_report"] = report_rel
@@ -6048,9 +6596,20 @@ def main() -> int:
     exploit_rewrite_extra_loops = (
         exploit_rewrite_max_extra_loops if (exploit_rewrite_enabled and enable_exploit and bool(terminal_stage)) else 0
     )
-    loop_end = loop_start + base_max_loops + exploit_rewrite_extra_loops
-    if exploit_rewrite_enabled and exploit_rewrite_until_success and enable_exploit and bool(terminal_stage):
-        loop_end = max(loop_end, loop_start + EXPLOIT_REWRITE_UNTIL_SUCCESS_LOOP_CAP)
+    loop_budget = adjust_loop_budget_for_missing_codex(
+        allow_codex_missing=bool(args.allow_codex_missing),
+        codex_available=bool(codex_available),
+        enable_exploit=bool(enable_exploit),
+        terminal_stage=terminal_stage,
+        loop_start=loop_start,
+        base_max_loops=base_max_loops,
+        exploit_rewrite_enabled=bool(exploit_rewrite_enabled),
+        exploit_rewrite_until_success=bool(exploit_rewrite_until_success),
+        exploit_rewrite_extra_loops=int(exploit_rewrite_extra_loops),
+    )
+    loop_end = int(loop_budget.get("loop_end", loop_start + base_max_loops + exploit_rewrite_extra_loops))
+    exploit_rewrite_until_success = bool(loop_budget.get("exploit_rewrite_until_success", exploit_rewrite_until_success))
+    exploit_rewrite_extra_loops = int(loop_budget.get("exploit_rewrite_extra_loops", exploit_rewrite_extra_loops) or 0)
     exploit_rewrite_started_monotonic = 0.0
     exploit_rewrite_same_error_streak = 0
     exploit_rewrite_last_error = ""
@@ -6075,6 +6634,9 @@ def main() -> int:
         os.environ["DIRGE_AUTORUN"] = "1"
         os.environ["DIRGE_BLOCK_SELF_STOP"] = "1" if block_self_stop else "0"
 
+        loop_budget_note = str(loop_budget.get("note", "")).strip()
+        if loop_budget_note:
+            notes.append(loop_budget_note)
         if fast_mode:
             notes.append("fast profile 已启用")
         if unified_enabled:
@@ -6274,6 +6836,9 @@ def main() -> int:
                 else ("on(lazy)" if remote_preflight_enabled else "off")
             )
         )
+        skip_codex_health_for_missing_runtime = bool(args.allow_codex_missing and (not codex_available))
+        if skip_codex_health_for_missing_runtime:
+            notes.append("codex missing with --allow-codex-missing: skip startup MCP hard-preflight/health gate")
         if remote_preflight_enabled and remote_preflight_check_on_start:
             gate_ok, gate_report_rel, gate_detail = run_remote_target_preflight(
                 state_path=args.state,
@@ -6292,24 +6857,25 @@ def main() -> int:
                 save_json(args.state, state_remote_gate)
                 sync_meta_from_state(sid, state_remote_gate)
                 return 6
-        hard_preflight_ok, hard_preflight_report, hard_preflight_detail = run_mcp_hard_preflight(
-            state_path=args.state,
-            session_id=sid,
-            health_cfg=mcp_health_cfg,
-            codex_bin=codex_bin,
-            notes=notes,
-        )
-        if hard_preflight_report:
-            notes.append(f"mcp hard preflight report: {hard_preflight_report}")
-        if hard_preflight_detail and hard_preflight_ok:
-            notes.append(f"mcp hard preflight note: {hard_preflight_detail}")
-        if not hard_preflight_ok:
-            state_hard_gate = load_json(args.state)
-            state_hard_gate.setdefault("session", {})["status"] = "mcp_health_failed"
-            state_hard_gate["session"]["last_error"] = f"mcp hard preflight blocked: {hard_preflight_detail or 'invalid env'}"
-            save_json(args.state, state_hard_gate)
-            sync_meta_from_state(sid, state_hard_gate)
-            return 5
+        if not skip_codex_health_for_missing_runtime:
+            hard_preflight_ok, hard_preflight_report, hard_preflight_detail = run_mcp_hard_preflight(
+                state_path=args.state,
+                session_id=sid,
+                health_cfg=mcp_health_cfg,
+                codex_bin=codex_bin,
+                notes=notes,
+            )
+            if hard_preflight_report:
+                notes.append(f"mcp hard preflight report: {hard_preflight_report}")
+            if hard_preflight_detail and hard_preflight_ok:
+                notes.append(f"mcp hard preflight note: {hard_preflight_detail}")
+            if not hard_preflight_ok:
+                state_hard_gate = load_json(args.state)
+                state_hard_gate.setdefault("session", {})["status"] = "mcp_health_failed"
+                state_hard_gate["session"]["last_error"] = f"mcp hard preflight blocked: {hard_preflight_detail or 'invalid env'}"
+                save_json(args.state, state_hard_gate)
+                sync_meta_from_state(sid, state_hard_gate)
+                return 5
         ident_pre_rel = write_binary_identity_report(
             state_path=args.state,
             session_id=sid,
@@ -6324,6 +6890,8 @@ def main() -> int:
             notes.append("quick shortcut active: skip MCP startup self-heal/health gate")
         elif skip_mcp_bootstrap_for_blind:
             notes.append("blind mode active: skip MCP startup self-heal/health gate")
+        elif skip_codex_health_for_missing_runtime:
+            notes.append("codex missing with --allow-codex-missing: skip MCP startup self-heal/health gate")
         else:
             if bool(mcp_health_cfg.get("self_heal_on_start", True)):
                 run_mcp_self_heal(
@@ -6372,9 +6940,33 @@ def main() -> int:
             if args.allow_codex_missing:
                 notes.append(msg)
                 restrict_to_l3 = bool(decision_cfg.get("restrict_to_l3_on_codex_missing", True))
-                if restrict_to_l3:
-                    fallback_stage = terminal_stage or "exploit_l3"
-                    stage_order = [x for x in stage_order if x == fallback_stage]
+                stage_order, missing_codex_plan = choose_missing_codex_stage_order(
+                    stage_order=stage_order,
+                    state_path=args.state,
+                    terminal_stage=terminal_stage,
+                    prefer_local_recon=True,
+                    restrict_to_l3=restrict_to_l3,
+                )
+                if missing_codex_plan == "local_recon_only":
+                    notes.append("codex missing: prefer portable local recon fallback instead of terminal-only exploit")
+                    enable_exploit = False
+                    force_terminal_stage = False
+                    terminal_stage = ""
+                    exploit_rewrite_enabled = False
+                    exploit_rewrite_until_success = False
+                    exploit_rewrite_extra_loops = 0
+                    loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
+                elif missing_codex_plan == "local_recon_gdb":
+                    notes.append("codex missing: prefer portable local recon + local gdb evidence fallback")
+                    enable_exploit = False
+                    force_terminal_stage = False
+                    terminal_stage = ""
+                    exploit_rewrite_enabled = False
+                    exploit_rewrite_until_success = False
+                    exploit_rewrite_extra_loops = 0
+                    loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
+                elif missing_codex_plan == "terminal_only":
+                    notes.append("codex missing: restrict stage plan to terminal exploit only")
                 else:
                     notes.append("codex 缺失，但保持完整 stage plan（失败后继续由策略层处理）")
                 state = load_json(args.state)
@@ -7046,10 +7638,41 @@ def main() -> int:
                         else:
                             append_file(log_abs, f"[run_session] skip codex for {stage} by automation.exploit_stage.run_codex=false\n")
                     elif ok and not codex_available and exploit_stage_level(stage) < 0:
-                        ok = False
-                        rc = 127
-                        err = f"codex missing, skipped stage {stage}"
-                        append_file(log_abs, err + "\n")
+                        if stage == "recon":
+                            recon_ok, recon_report_rel, recon_err = run_local_recon_fallback(
+                                state_path=args.state,
+                                session_id=sid,
+                                loop_idx=loop_idx,
+                                log_abs=log_abs,
+                                log_rel=log_rel,
+                            )
+                            ok = recon_ok
+                            if ok:
+                                append_file(log_abs, f"[run_session] local recon report -> {recon_report_rel}\n")
+                            else:
+                                rc = 127
+                                err = recon_err or f"codex missing, skipped stage {stage}"
+                                append_file(log_abs, err + "\n")
+                        elif stage == "gdb_evidence":
+                            gdb_ok, gdb_report_rel, gdb_err = run_local_gdb_fallback(
+                                state_path=args.state,
+                                session_id=sid,
+                                loop_idx=loop_idx,
+                                log_abs=log_abs,
+                                log_rel=log_rel,
+                            )
+                            ok = gdb_ok
+                            if ok:
+                                append_file(log_abs, f"[run_session] local gdb summary -> {gdb_report_rel}\n")
+                            else:
+                                rc = 127
+                                err = gdb_err or f"codex missing, skipped stage {stage}"
+                                append_file(log_abs, err + "\n")
+                        else:
+                            ok = False
+                            rc = 127
+                            err = f"codex missing, skipped stage {stage}"
+                            append_file(log_abs, err + "\n")
                     elif ok and not codex_available and exploit_stage_level(stage) >= 0:
                         append_file(log_abs, f"[run_session] codex missing, {stage} runs with local exp plugin only\n")
 

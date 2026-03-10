@@ -4,5 +4,38 @@
   "binary": "<binary_name>",
   "max_loops": 1,
   "allow_codex_missing": true,
-  "notes": "复制本文件并改名为你的 case_id.json"
+  "ensure_binary_executable": false,
+  "clear_cached_artifacts": false,
+  "start_no_codex": true,
+  "start_session_args": [],
+  "run_session_args": [],
+  "env": {
+    "CODEX_BIN": "codex"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon"],
+    "stage_sequence": ["recon"],
+    "forbid_stage_cache_hits": ["recon"],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished"
+    },
+    "report_paths": {
+      "report": "file"
+    },
+    "report_path_contains": {
+      "report": "{{SESSION_ID}}"
+    },
+    "report_json_paths": {
+      "report": {
+        "session_id": "{{SESSION_ID}}"
+      }
+    }
+  },
+  "notes": "复制本文件并改名为你的 case_id.json；如需更贴近 host-side Codex CLI，可在 env / *_args 中显式描述运行面，并用 expect 描述这题被视为成功的最小结果面。若要在 no-Codex 路径验证本地 gdb 证据，可在 env 中加 DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING=1，并提供 DIRGE_LOCAL_GDB_STDIN_TEXT / HEX / FILE。"
 }

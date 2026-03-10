@@ -1,25 +1,163 @@
 {
-  "generated_utc": "2026-02-14T03:29:57Z",
-  "source_report": "artifacts/reports/benchmark_replay_20260214T032956Z.json",
+  "generated_utc": "2026-03-10T19:41:24Z",
+  "source_report": "artifacts/reports/benchmark_replay_20260310T194122Z.json",
   "scoreboard": {
-    "cases_total": 1,
-    "cases_executed": 1,
-    "cases_skipped": 0,
-    "cases_ok": 1,
+    "cases_total": 3,
+    "cases_executed": 2,
+    "cases_skipped": 1,
+    "cases_ok": 2,
     "cases_failed": 0,
     "success_rate": 1.0,
     "codex_errors_total": 0,
     "stage_retries_total": 0,
     "recoverable_failures_total": 0,
-    "capability_updates_total": 1,
-    "exploit_success_total": 1,
-    "objective_score_avg": 0.0
+    "capability_updates_total": 0,
+    "exploit_success_total": 0,
+    "objective_score_avg": 45.0
   },
   "cases": [
     {
       "case_id": "demo_local",
       "ok": true,
-      "run_rc": 0
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/demo",
+        "binary": "chall_true",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {},
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon"
+          ],
+          "required_success_stages": [
+            "recon"
+          ],
+          "stage_sequence": [
+            "recon"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished"
+          }
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "550994ae087749db9f39f8142dbf0452e8440086792ec4842b38b329fe023980",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon"
+      ]
+    },
+    {
+      "case_id": "demo_local_gdb",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_gdb",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "CRASH\n"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "recon.analysis_ready": true,
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "gdb.stdin_source": "text-env",
+            "gdb.analysis_ready": true,
+            "capabilities.has_crash": true,
+            "dynamic_evidence.evidence[0].gdb.signal": "SIGSEGV",
+            "dynamic_evidence.inputs[0].stdin_source": "text-env"
+          },
+          "report_paths": {
+            "report": "file",
+            "acceptance_report": "file",
+            "timeline_report": "file",
+            "stage_results[0].stage_receipt": "file",
+            "stage_results[1].stage_receipt": "file"
+          },
+          "report_path_contains": {
+            "report": "{{SESSION_ID}}",
+            "acceptance_report": "{{SESSION_ID}}",
+            "timeline_report": "{{SESSION_ID}}",
+            "stage_results[0].stage_receipt": "{{SESSION_ID}}",
+            "stage_results[1].stage_receipt": "{{SESSION_ID}}"
+          },
+          "report_json_paths": {
+            "acceptance_report": {
+              "session_id": "{{SESSION_ID}}",
+              "passed": true
+            },
+            "stage_results[0].stage_receipt": {
+              "session_id": "{{SESSION_ID}}",
+              "loop": 1,
+              "stage": "recon",
+              "result.ok": true
+            },
+            "stage_results[1].stage_receipt": {
+              "session_id": "{{SESSION_ID}}",
+              "loop": 1,
+              "stage": "gdb_evidence",
+              "result.ok": true
+            }
+          }
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "2e96d12d42ab7332b00e2a8300afe6277b045ce625aacdbaf5e720e8e0c6596f",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
     }
   ]
 }

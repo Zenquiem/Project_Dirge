@@ -4,5 +4,20 @@
   "binary": "chall_true",
   "max_loops": 1,
   "allow_codex_missing": true,
-  "notes": "本地 smoke case，用于验证会话编排与产物落盘"
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": ["recon"],
+    "stage_sequence": ["recon"],
+    "forbid_stage_cache_hits": ["recon"],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished"
+    }
+  },
+  "notes": "本地 smoke case，用于验证会话编排、产物落盘，以及 benchmark 级结果断言链路"
 }

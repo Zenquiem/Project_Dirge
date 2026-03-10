@@ -1,0 +1,68 @@
+{
+  "enabled": true,
+  "challenge_dir": "challenge/bench_local_gdb",
+  "binary": "chall",
+  "max_loops": 1,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_TEXT": "CRASH\n"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished",
+      "recon.mode": "local_recon_fallback",
+      "recon.analysis_ready": true,
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "gdb.stdin_source": "text-env",
+      "gdb.analysis_ready": true,
+      "capabilities.has_crash": true,
+      "dynamic_evidence.evidence[0].gdb.signal": "SIGSEGV",
+      "dynamic_evidence.inputs[0].stdin_source": "text-env"
+    },
+    "report_paths": {
+      "report": "file",
+      "acceptance_report": "file",
+      "timeline_report": "file",
+      "stage_results[0].stage_receipt": "file",
+      "stage_results[1].stage_receipt": "file"
+    },
+    "report_path_contains": {
+      "report": "{{SESSION_ID}}",
+      "acceptance_report": "{{SESSION_ID}}",
+      "timeline_report": "{{SESSION_ID}}",
+      "stage_results[0].stage_receipt": "{{SESSION_ID}}",
+      "stage_results[1].stage_receipt": "{{SESSION_ID}}"
+    },
+    "report_json_paths": {
+      "acceptance_report": {
+        "session_id": "{{SESSION_ID}}",
+        "passed": true
+      },
+      "stage_results[0].stage_receipt": {
+        "session_id": "{{SESSION_ID}}",
+        "loop": 1,
+        "stage": "recon",
+        "result.ok": true
+      },
+      "stage_results[1].stage_receipt": {
+        "session_id": "{{SESSION_ID}}",
+        "loop": 1,
+        "stage": "gdb_evidence",
+        "result.ok": true
+      }
+    }
+  },
+  "notes": "本地 no-Codex benchmark，使用显式 crash seed 验证 portable recon + gdb_evidence 冷启动路径"
+}

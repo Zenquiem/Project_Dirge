@@ -458,7 +458,7 @@ if [[ -z "$SESSION_NAME" || "$SESSION_NAME" == "/" || "$SESSION_NAME" == "." ]];
 fi
 
 if [[ "$DO_RESET" -eq 1 ]]; then
-  "$RESET_SCRIPT" --drop-challenge --no-backup >/dev/null
+  bash "$RESET_SCRIPT" --drop-challenge --no-backup >/dev/null
 fi
 
 CREATED_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

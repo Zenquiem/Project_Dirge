@@ -177,6 +177,8 @@ def finalize_run_outputs(
         final_state.setdefault("summary", {}).setdefault("blockers", []).append("acceptance gate failed")
     exit_code = int(final_exit.exit_code)
 
+    save_json_fn(state_path, final_state)
+
     if enable_exploit:
         ensure_exploit_artifact_links_fn(
             state_path=state_path,
