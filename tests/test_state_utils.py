@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -42,6 +43,19 @@ class StateUtilsTests(unittest.TestCase):
                 "required_last_evidence_any_of_paths": ["gdb.pc_offset", "gdb.signal"],
             }
             self.assertEqual([], validate_stage_runner_spec(state, spec, root_dir=tmp))
+
+    def test_validate_stage_runner_spec_reports_receipt_stage_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_rel = "artifacts/reports/stage_receipt_sess-1_03_recon.json"
+            artifact_abs = os.path.join(tmp, artifact_rel)
+            os.makedirs(os.path.dirname(artifact_abs), exist_ok=True)
+            with open(artifact_abs, "w", encoding="utf-8") as f:
+                json.dump({"stage": "ida_slice"}, f)
+
+            state = {"artifacts_index": {"latest": {"paths": {"recon_receipt": artifact_rel}}}}
+            spec = {"required_artifact_keys": ["recon_receipt"]}
+            errors = validate_stage_runner_spec(state, spec, root_dir=tmp)
+            self.assertTrue(any("required receipt stage mismatch" in err for err in errors))
 
     def test_validate_stage_runner_spec_reports_missing_requirements(self) -> None:
         state = {"artifacts_index": {"latest": {"paths": {}}}, "dynamic_evidence": {"evidence": []}}

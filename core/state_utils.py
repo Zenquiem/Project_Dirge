@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Dict, List, Tuple
 
@@ -24,6 +25,35 @@ def value_present(value: Any) -> bool:
     return True
 
 
+def _expected_receipt_stage_for_key(key: str) -> str:
+    normalized = str(key).strip()
+    if normalized == "stage_receipt":
+        return ""
+    if normalized.endswith("_receipt"):
+        return normalized[: -len("_receipt")].strip()
+    return ""
+
+
+def _validate_receipt_artifact(abs_path: str, artifact_key: str) -> List[str]:
+    expected_stage = _expected_receipt_stage_for_key(artifact_key)
+    if not expected_stage:
+        return []
+    try:
+        with open(abs_path, "r", encoding="utf-8") as f:
+            receipt = json.load(f)
+    except OSError as exc:
+        return [f"required receipt unreadable: latest.paths.{artifact_key} -> {exc}"]
+    except json.JSONDecodeError as exc:
+        return [f"required receipt invalid json: latest.paths.{artifact_key} -> {exc}"]
+
+    actual_stage = str(receipt.get("stage", "")).strip()
+    if actual_stage != expected_stage:
+        return [
+            f"required receipt stage mismatch: latest.paths.{artifact_key} -> expected {expected_stage}, got {actual_stage or '<empty>'}"
+        ]
+    return []
+
+
 def validate_stage_runner_spec(state: Dict[str, Any], stage_spec: Dict[str, Any], *, root_dir: str) -> List[str]:
     errors: List[str] = []
     latest = state.get("artifacts_index", {}).get("latest", {}).get("paths", {})
@@ -38,6 +68,8 @@ def validate_stage_runner_spec(state: Dict[str, Any], stage_spec: Dict[str, Any]
         abs_path = os.path.join(root_dir, artifact_path) if not os.path.isabs(artifact_path) else artifact_path
         if not os.path.exists(abs_path):
             errors.append(f"required artifact file not found: latest.paths.{key} -> {artifact_path}")
+            continue
+        errors.extend(_validate_receipt_artifact(abs_path, str(key)))
 
     for path in stage_spec.get("required_state_paths", []):
         ok, value = get_path_value(state, str(path))
