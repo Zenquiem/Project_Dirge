@@ -80,11 +80,18 @@ python3 -m pip install -r requirements-dev.txt
 可选检查：
 
 ```bash
-ruff check .
+python3 -m ruff check tests
 python3 -m compileall core scripts tests
 ```
 
-仓库已附带 GitHub Actions CI：push / pull request 时会自动执行 `ruff check .` 与 `python -m unittest discover -s tests -q`。
+也可以直接用：
+
+```bash
+make dev-install
+make check
+```
+
+仓库已附带 GitHub Actions CI：push / pull request 时会自动执行 `python -m ruff check tests` 与 `python -m unittest discover -s tests -q`。
 
 ---
 
@@ -122,6 +129,6 @@ git rm --cached *.core || true
 ## 下一步建议（工程化）
 
 1. 继续拆分 `scripts/run_session.py`（超大文件）为 orchestrator + runtime helpers。
-2. 增加 `requirements-dev.txt` 或 `pyproject.toml` 统一开发依赖。
-3. 增加 CI：至少跑 `unittest` + 基础 lint。
-4. 给 `policy/*.yaml` 增加配置说明文档（默认值与风险说明）。
+2. 给 `policy/*.yaml` 增加配置说明文档（默认值、联动关系、风险说明）。
+3. 增加更细的测试覆盖：尤其是 `run_session.py` 周边的配置归并、fail-open / rewrite / fuse 分支。
+4. 视需要补充本地开发规范（例如 `make check`、提交前检查、最小 Python 环境约束）。

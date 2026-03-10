@@ -43,7 +43,9 @@ class SessionStrategyRouteTests(unittest.TestCase):
             detect_blind_mode_fn=lambda s: False,
             detect_lua_runtime_exec_hint_fn=lambda s: False,
             detect_repl_cmd_exec_hint_fn=lambda s: False,
-            write_strategy_route_switch_report_fn=lambda **kwargs: reports.append(kwargs) or "artifacts/reports/switch.json",
+            write_strategy_route_switch_report_fn=(
+                lambda **kwargs: reports.append(kwargs) or "artifacts/reports/switch.json"
+            ),
             utc_now_fn=lambda: "2026-01-01T00:00:00Z",
         )
 
