@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-03-10T19:41:24Z",
-  "source_report": "artifacts/reports/benchmark_replay_20260310T194122Z.json",
+  "generated_utc": "2026-03-10T20:02:19Z",
+  "source_report": "artifacts/reports/benchmark_replay_20260310T200217Z.json",
   "scoreboard": {
     "cases_total": 3,
     "cases_executed": 2,
@@ -46,14 +46,20 @@
           },
           "state_paths": {
             "session.status": "finished"
-          }
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
         },
         "ensure_binary_executable": true,
         "clear_cached_artifacts": true,
         "start_timeout_seconds": null,
         "run_timeout_seconds": null
       },
-      "case_contract_hash": "550994ae087749db9f39f8142dbf0452e8440086792ec4842b38b329fe023980",
+      "case_contract_hash": "3e52a2b3ae9903739082aad8c9fd233115e501fc09d2188c244918d0d487ac46",
       "final_exit_code": 0,
       "acceptance_passed": true,
       "success_stages": [
@@ -140,14 +146,20 @@
               "stage": "gdb_evidence",
               "result.ok": true
             }
-          }
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
         },
         "ensure_binary_executable": true,
         "clear_cached_artifacts": true,
         "start_timeout_seconds": null,
         "run_timeout_seconds": null
       },
-      "case_contract_hash": "2e96d12d42ab7332b00e2a8300afe6277b045ce625aacdbaf5e720e8e0c6596f",
+      "case_contract_hash": "02a1be28240941b5afa589b12d5ce2644f97204e446fc545332bdba57d916f66",
       "final_exit_code": 0,
       "acceptance_passed": true,
       "success_stages": [

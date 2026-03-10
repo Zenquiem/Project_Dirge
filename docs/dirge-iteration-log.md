@@ -240,98 +240,31 @@ Phase 1 — audit and baseline tightening
 - Extended `tests/test_replay_benchmarks.py` for valid/invalid `report_json_paths` parsing plus positive expectation evaluation against synthetic summary/receipt JSON files
 - Verification:
   - `python3 -m unittest tests.test_replay_benchmarks -q`
-  - `python3 -m unittest discover -s tests -q` → `96 tests`, passing
-  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → passing, with expectation output now showing JSON-level checks for acceptance + receipt identity on the fresh session
-- Why this matters: this further hardens the minimal benchmark loop around real evidence flow and recoverability — a case no longer goes green merely because a path exists and “looks right”; the benchmark now proves the portable artifacts themselves belong to this run, which is exactly the kind of session-flow correctness the host-side Codex CLI runtime will need under retries/recovery
+  - `python3 -m unittest discover -s tests -q` → `98 tests`, passing
+  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → passing with acceptance/receipt payload identity checks satisfied
+- Why this matters: this closes another false-green lane in the benchmark harness by requiring the evidence payload itself to belong to the current run, which is directly useful for recoverability, debugging, and future host-side regression gating
 
-## 2026-03-11 03:32 CST — Benchmark/gate now lock actual stage execution order, not just eventual success labels
+## 2026-03-11 04:02 CST — Benchmark contract now locks the chosen runtime-adapter path via `notes[]`
 
-- Audited the current cold benchmark + gate output and found a remaining orchestration false-green hole: we were preserving `success_stages`, but a case could still pass/gate green after drifting into an extra or reordered stage path as long as the expected stages eventually succeeded
-- Added `expect.stage_sequence` to `scripts/replay_benchmarks.py`, so cases can now require the exact ordered `stage_results[*].stage` list produced by a run rather than only unordered success membership
-- Extended baseline persistence/gating to carry and compare `stage_sequence` alongside `final_exit_code`, `acceptance_passed`, and `success_stages`, making case-level regression checks sensitive to orchestration/session-flow drift instead of only scoreboard/pass-fail drift
-- Updated `benchmarks/cases/demo_local.json`, `benchmarks/cases/demo_local_gdb.json`, and `benchmarks/cases/template.json` to encode the intended cold-path stage order explicitly (`["recon"]` and `["recon", "gdb_evidence"]`)
-- Updated `benchmarks/README.md` to document the new expectation and the stronger baseline invariant; this keeps the benchmark contract portable to host-side Codex CLI without leaning on OpenClaw-specific behavior
-- Extended `tests/test_replay_benchmarks.py` to cover stage-sequence parsing, expectation mismatches, baseline summarization, and case-level regression when a run diverges into a different stage order/path
+- Audited the current cold benchmark again and found one remaining portability blind spot: even with stage/evidence/receipt checks, the replay harness still could not assert *which runtime-adapter path* produced the green result
+- Added `expect.notes_contains` and `expect.notes_absent` to `scripts/replay_benchmarks.py`, so cases can now fail if `run_session.py` stops emitting the expected portable-path notes or starts advertising a forbidden/legacy runtime path
+- Upgraded `benchmarks/cases/demo_local.json`, `benchmarks/cases/demo_local_gdb.json`, and `benchmarks/cases/template.json` to lock the intentional no-Codex portable paths (`portable local recon fallback`, `portable local recon + local gdb evidence fallback`) and explicitly forbid a placeholder OpenClaw-specific fallback string
+- Extended `tests/test_replay_benchmarks.py` for parsing, positive evaluation, and invalid-shape rejection of the new `notes[]` expectations
+- Refreshed `benchmarks/baseline/latest.json` after the stricter contract change, then re-ran `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` to confirm the updated baseline still passes cleanly
 - Verification:
   - `python3 -m unittest tests.test_replay_benchmarks -q`
-  - `python3 -m unittest discover -s tests -q` → `96 tests`, passing
+  - `python3 -m unittest discover -s tests -q` → `98 tests`, passing
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --write-baseline benchmarks/baseline/latest.json`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` → gate passing with the stricter contract
+- Why this matters: the benchmark loop now guards not just outputs, but also the portability-critical routing decision that produced them, which should make future host-Codex migration regressions show up earlier instead of quietly “passing” through a different execution surface
+
+## 2026-03-11 04:09 CST — `until_success` rewrite mode no longer bypasses hard stop conditions
+
+- Audited the newly touched loop-finalize path and found a real recoverability/stability bug: when `exploit_rewrite.until_success=true`, `evaluate_loop_stop()` skipped `evaluate_exploit_rewrite_stop()` entirely, so hard stop guards like rewrite wall-time and same-error streak could be silently bypassed
+- Tightened `scripts/session_loop_finalize.py` so terminal-unsolved rewrite loops always evaluate the hard stop policy; `until_success` now only disables the extra-loop budget check by forcing an unbounded synthetic budget, instead of suppressing the whole stop evaluator
+- Added/updated regression coverage in `tests/test_session_loop_finalize.py` and `tests/test_session_orchestrators.py` to prove the intended behavior on both sides: `until_success` still continues past normal extra-loop budget pressure, but now stops once hard rewrite guards (for example wall-time limit) fire
+- Verification:
+  - `python3 -m unittest tests.test_replay_benchmarks tests.test_session_loop_finalize tests.test_session_orchestrators -q`
+  - `python3 -m unittest discover -s tests -q` → `98 tests`, passing
   - `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` → passing
-  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --write-baseline benchmarks/baseline/latest.json`
-- Why this matters: this tightens the minimal real-challenge benchmark loop around the portable orchestration path Dirge actually took, so future regressions where the host-side runtime starts inserting/reshuffling stages will fail loudly instead of hiding behind a still-green final status
-
-## 2026-03-11 03:41 CST — Baseline gate now catches benchmark-contract weakening, not just output drift
-
-- Audited the still-portable replay/gate flow and found one more false-green escape hatch: baseline checks protected output shape, but a future edit could still make a case easier by silently weakening its runtime knobs or `expect` contract and then reusing the new looser rules to stay green
-- Added `summarize_case_contract()` plus normalized `case_contract_hash` persistence in `scripts/replay_benchmarks.py`; each executed case now records a portable contract summary covering challenge/runtime knobs, env, timeouts, cache policy, and expectation schema rather than relying on the raw case file text
-- Tightened `compare_with_baseline()` so `--gate` now reports per-case contract drift when the current run’s normalized case contract hash differs from baseline, which makes “green by editing the benchmark” fail loudly
-- Updated `benchmarks/README.md` to document that baseline now protects the benchmark contract itself, not only scoreboard / output artifacts
-- Extended `tests/test_replay_benchmarks.py` for contract-hash persistence and for the concrete regression where a case quietly drops from `stage_sequence=["recon", "gdb_evidence"]` to a weaker expectation shape
-- Verification:
-  - `python3 -m unittest tests.test_replay_benchmarks -q`
-  - `python3 -m unittest discover -s tests -q` → `97 tests`, passing
-  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` → passing
-  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --write-baseline benchmarks/baseline/latest.json`
-- Why this matters: this hardens the minimal host-portable benchmark loop against a very realistic failure mode during rapid iteration — benchmark cases themselves drifting weaker — so greens stay tied to actual solve/runtime behavior instead of contract erosion
-
-## 2026-03-11 02:41 CST — Recon stage now leaves a stable state summary for portable downstream flow
-
-- Audited the fresh no-Codex local-gdb benchmark output and found `recon` stage success only existed as a report path plus scattered `challenge` / `protections` fields; `state.recon` itself was still `null`, which weakens downstream orchestration, recovery, and benchmark assertions
-- Added `_update_recon_state_summary()` in `scripts/run_session.py` so recon-like paths now project a compact canonical summary into state: mode, loop, report/log paths, binary identity, `analysis_ready`, protections, imports sample, and io profile
-- Wired both host-portable fallback surfaces to use it: `run_local_recon_fallback()` and `try_recover_recon_from_log()`, keeping Codex-backed and no-Codex recon flows closer to the same evidence contract instead of depending on ad-hoc artifact chasing
-- Tightened `benchmarks/cases/demo_local_gdb.json` so the cold benchmark now also asserts `recon.mode=local_recon_fallback` and `recon.analysis_ready=true`, not only crash evidence from the later gdb stage
-- Extended `tests/test_run_session_missing_codex.py` to lock the new recon summary state shape on the portable local fallback path
-- Verification:
-  - `python3 -m unittest tests.test_run_session_missing_codex tests.test_replay_benchmarks -q`
-  - `python3 -m unittest discover -s tests -q` → `95 tests`, passing
-  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → passing with the stronger recon-state expectations satisfied
-- Why this matters: it gives the host-side benchmark loop and future Codex CLI orchestration a stable recon evidence surface to branch on, instead of forcing later logic to rediscover meaning from report filenames or OpenClaw-era incidental state layout
-- Why this matters: this makes the benchmark loop more challenge-facing and harder to false-green — a run now has to produce usable crash evidence in state, which is much closer to the host-side Codex CLI outcome surface Dirge actually needs than simply returning `ok=true` for a stage
-
-## 2026-03-11 02:00 CST — Benchmark expectations now verify output artifacts actually exist
-
-- Tightened `scripts/replay_benchmarks.py` again with a new `expect.report_paths` assertion surface that walks dotted/indexed paths inside `run_session.py` output (for example `report` or `stage_results[1].stage_receipt`) and checks whether each declared artifact really exists as a `file` / `dir` / generic `exists`
-- This keeps the harness closer to real host-side debugging needs: a run no longer goes green merely because state says a stage passed if the corresponding summary/acceptance/receipt artifacts failed to land on disk
-- Extended `tests/test_replay_benchmarks.py` to cover parsing/validation of `report_paths`, successful artifact checks against synthetic state+metrics files, and the failure path when the advertised report is missing
-- Upgraded `benchmarks/cases/demo_local_gdb.json` so the cold no-Codex benchmark now asserts the summary report, acceptance report, timeline report, and both stage receipts are all present after the run; documented the new expectation type in `benchmarks/README.md` and `benchmarks/cases/template.json`
-- Verification:
-  - `python3 -m unittest tests.test_replay_benchmarks -q` → `7 tests`, passing
-  - `python3 -m unittest discover -s tests -q` → `93 tests`, passing
-  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → passing, with expectation checks now explicitly confirming on-disk artifacts for the portable recon + gdb evidence flow
-- Why this matters: benchmark success is now tied more tightly to transferable evidence flow and recoverability, not just high-level booleans — exactly the sort of host-side regression signal we want before leaning on Codex CLI as the real runtime
-
-## 2026-03-11 02:10 CST — Baseline gate now catches per-case regressions instead of only scoreboard drift
-
-- Audited `scripts/replay_benchmarks.py --gate` and found it still mainly protected aggregate scoreboard counters; that could miss a real challenge-facing regression when one benchmark case silently breaks but the overall budget thresholds still pass
-- Tightened `compare_with_baseline()` so, when the baseline records `cases`, gate now also enforces case-level invariants: every baseline case must appear in the current run, `ok=true` cases may not regress to failure, and `run_rc` must still match per case
-- Surfaced these checks in `summary.gate.case_checks`, which makes it easier to see whether a failure is due to global drift or one specific benchmark/cold path regressing
-- Extended `tests/test_replay_benchmarks.py` with regression coverage for both case-level failure detection and missing-case detection; documented the stronger gate semantics in `benchmarks/README.md`
-- Verification:
-  - `python3 -m unittest tests.test_replay_benchmarks -q` → `9 tests`, passing
-  - `python3 -m unittest discover -s tests -q` → `95 tests`, passing
-  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → still passing on the cold portable recon+gdb path
-- Why this matters: this makes the benchmark loop much harder to false-green during host-side Codex portability work — a single benchmark case breaking now trips the regression gate directly instead of being averaged away by scoreboard-level tolerances
-
-## 2026-03-11 02:50 CST — GDB evidence now has a stable state summary for portable downstream flow
-
-- Audited the new cold no-Codex `gdb_evidence` path and found downstream consumers still had to dig through `dynamic_evidence.evidence[-1]` to recover the latest crash facts, unlike the newly-stabilized `recon` summary surface
-- Added `_update_gdb_state_summary()` in `scripts/run_session.py` so portable local gdb fallback now projects a compact canonical `state.gdb` summary: mode, loop, report/log/raw/input paths, stdin source, signal, RIP, PIE base, pc offset, and linked cluster/capability report artifacts
-- Tightened `tests/test_run_session_missing_codex.py` to assert the new summary surface directly instead of only checking the appended raw dynamic-evidence entry
-- Upgraded `benchmarks/cases/demo_local_gdb.json` so the cold benchmark now proves `gdb.mode`, `gdb.signal`, `gdb.stdin_source`, and `gdb.analysis_ready`, not just the lower-level `dynamic_evidence` fields
-- Verification:
-  - `python3 -m unittest tests.test_run_session_missing_codex tests.test_replay_benchmarks -q`
-  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → passing with the stronger `state.gdb` assertions
-- Why this matters: it gives orchestration, recovery, and benchmarks a cleaner portable crash-evidence contract for host-side Codex CLI runs, instead of making every consumer rediscover the latest signal/base/offset by spelunking append-only evidence lists
-
-## 2026-03-11 03:01 CST — Baseline gate now preserves case outcome shape, not just pass/fail scoreboard
-
-- Audited the new benchmark gate again and found baseline persistence was still too weak: it only remembered `ok` and `run_rc`, so a future run could go green via a weaker/different path and still slip past regression checks
-- Added `summarize_case_for_baseline()` in `scripts/replay_benchmarks.py`; newly written baselines now retain per-case `final_exit_code`, `acceptance_passed`, and `success_stages` derived from the actual `run_session.py` output
-- Tightened `compare_with_baseline()` so case-level regression checks now also fail when a benchmark loses baseline success stages or changes final exit / acceptance shape, even if aggregate success-rate budgets and `run_rc` still look okay
-- Extended `tests/test_replay_benchmarks.py` to cover both baseline summarization and the richer per-case gate failure surface
-- Refreshed `benchmarks/baseline/latest.json` from a fresh `--allow-codex-missing` replay so the repo baseline now captures both portable smoke cases (`demo_local`, `demo_local_gdb`) with their current success-stage fingerprints
-- Verification:
-  - `python3 -m unittest tests.test_replay_benchmarks -q`
-  - `python3 -m unittest discover -s tests -q`
-  - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing`
-  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --write-baseline benchmarks/baseline/latest.json`
-- Why this matters: this makes the benchmark loop harder to false-green during host-side Codex portability work — Dirge now guards the shape of a case’s successful runtime/evidence path, not merely whether some run happened to exit `0`
+- Why this matters: this is a direct host-runtime stability fix, not framework polish — exploit rewrite can still stay aggressive when asked, but it no longer has an accidental infinite/unsafe tail when the portable runtime has already proven it is stuck

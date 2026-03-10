@@ -156,6 +156,59 @@ class SessionLoopFinalizeTests(unittest.TestCase):
         )
         self.assertTrue(outcome.should_break)
 
+    def test_evaluate_loop_stop_until_success_still_honors_hard_rewrite_stop(self) -> None:
+        notes = []
+        outcome = evaluate_loop_stop(
+            notes=notes,
+            after_loop_state={"session": {}},
+            state_path="state.json",
+            session_id="sess",
+            terminal_stage="exploit_l4",
+            terminal_attempted_this_loop=True,
+            terminal_local_verified_this_loop=False,
+            loop_terminal_unsolved=True,
+            exploit_rewrite_enabled=True,
+            exploit_rewrite_until_success=True,
+            exploit_rewrite_write_report=False,
+            stage_results=[{"loop": 3, "ok": False}],
+            base_max_loops=2,
+            exploit_rewrite_extra_loops=400,
+            rewrite_elapsed_sec=1200.0,
+            exploit_rewrite_same_error_streak=4,
+            terminal_non_actionable_verify_streak=0,
+            exploit_rewrite_last_error="assertion failed",
+            exploit_rewrite_last_verify_report="verify.json",
+            exploit_rewrite_last_exp_path="exp.py",
+            metrics=SimpleNamespace(),
+            save_json_fn=lambda path, data: None,
+            sync_meta_fn=lambda sid, data: None,
+            loop_idx=3,
+            loop_start=1,
+            exploit_rewrite_max_wall_sec=60.0,
+            exploit_rewrite_stop_on_same_error_streak=3,
+            exploit_rewrite_stop_on_non_actionable_verify_streak=0,
+            is_timeout_like_error_fn=lambda err: False,
+            objective_enabled=False,
+            objective_stop_on_achieved=False,
+            post_obj=SimpleNamespace(target_achieved=False, score=0),
+            force_terminal_stage=False,
+            write_exploit_rewrite_report_fn=lambda **kwargs: "",
+            current_exploit_rewrite_stop_reason="",
+            stop_after_no_progress=100,
+            no_progress_loops=0,
+            stop_on_stage_failure=False,
+            enable_exploit=True,
+            hint_gate_triggered=False,
+            hint_gate_stop_on_trigger=False,
+            rewrite_hint_gate_triggered=False,
+            exploit_rewrite_stop_on_request_hint=False,
+            timeout_gate_triggered=False,
+            timeout_gate_stop_on_trigger=False,
+        )
+        self.assertTrue(outcome.should_break)
+        self.assertIn("wall-time limit hit", outcome.exploit_rewrite_stop_reason)
+        self.assertTrue(any("wall-time limit hit" in note for note in notes))
+
 
 if __name__ == "__main__":
     unittest.main()

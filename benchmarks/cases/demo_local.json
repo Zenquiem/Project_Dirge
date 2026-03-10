@@ -17,7 +17,13 @@
     },
     "state_paths": {
       "session.status": "finished"
-    }
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
   },
   "notes": "本地 smoke case，用于验证会话编排、产物落盘，以及 benchmark 级结果断言链路"
 }

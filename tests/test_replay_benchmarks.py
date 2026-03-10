@@ -54,6 +54,8 @@ class ReplayBenchmarksTests(unittest.TestCase):
                     "report_paths": {"report": "file", "timeline_report": "file"},
                     "report_path_contains": {"report": "{{SESSION_ID}}"},
                     "report_json_paths": {"report": {"session_id": "{{SESSION_ID}}"}},
+                    "notes_contains": ["portable local recon", "{{SESSION_ID}} host-like"],
+                    "notes_absent": ["OpenClaw-specific fallback"],
                 },
             },
             case_id="host_portable",
@@ -74,6 +76,8 @@ class ReplayBenchmarksTests(unittest.TestCase):
         self.assertEqual(plan["expect"]["report_paths"]["report"], "file")
         self.assertEqual(plan["expect"]["report_path_contains"]["report"], "{{SESSION_ID}}")
         self.assertEqual(plan["expect"]["report_json_paths"]["report"]["session_id"], "{{SESSION_ID}}")
+        self.assertEqual(plan["expect"]["notes_contains"], ["portable local recon", "{{SESSION_ID}} host-like"])
+        self.assertEqual(plan["expect"]["notes_absent"], ["OpenClaw-specific fallback"])
 
     def test_invalid_case_shapes_raise(self):
         with self.assertRaises(ValueError):
@@ -142,6 +146,17 @@ class ReplayBenchmarksTests(unittest.TestCase):
                 allow_codex_missing_default=False,
             )
 
+        with self.assertRaises(ValueError):
+            rb.build_case_commands(
+                {
+                    "challenge_dir": "challenge/demo",
+                    "expect": {"notes_contains": [""]},
+                },
+                case_id="bad_notes_contains",
+                session_id="bench_bad_notes_contains_20260310T000000Z",
+                allow_codex_missing_default=False,
+            )
+
     def test_evaluate_case_expectations_checks_run_output_metrics_and_state(self):
         with tempfile.TemporaryDirectory() as td:
             state_abs = os.path.join(td, "bench_demo_state.json")
@@ -179,6 +194,10 @@ class ReplayBenchmarksTests(unittest.TestCase):
                     "stage_results": [
                         {"stage": "recon", "ok": True, "stage_cache_hit": False, "stage_receipt": receipt_abs},
                         {"stage": "exploit", "ok": True, "stage_cache_hit": False},
+                    ],
+                    "notes": [
+                        "portable local recon completed",
+                        "bench_demo_20260310 host-like runtime path selected",
                     ],
                 },
                 "metrics": rb._metrics_from_case_result({"run_output": {"metrics": metrics_abs}}),
@@ -219,6 +238,8 @@ class ReplayBenchmarksTests(unittest.TestCase):
                             "stage": "recon",
                         },
                     },
+                    "notes_contains": ["portable local recon", "{{SESSION_ID}} host-like"],
+                    "notes_absent": ["OpenClaw-specific fallback"],
                 },
             )
 
@@ -279,6 +300,7 @@ class ReplayBenchmarksTests(unittest.TestCase):
                 "exit_code": 1,
                 "acceptance_passed": False,
                 "stage_results": [{"stage": "recon", "ok": False, "stage_cache_hit": True}],
+                "notes": ["OpenClaw-specific fallback activated"],
             },
             "metrics": {"objective_score_latest": 0, "runs_total": 0},
         }
@@ -297,6 +319,8 @@ class ReplayBenchmarksTests(unittest.TestCase):
                 "state_paths": {"session.status": "finished"},
                 "report_paths": {"state": "file"},
                 "report_json_paths": {"report": {"session_id": "{{SESSION_ID}}"}},
+                "notes_contains": ["portable local recon"],
+                "notes_absent": ["OpenClaw-specific fallback"],
             },
         )
 

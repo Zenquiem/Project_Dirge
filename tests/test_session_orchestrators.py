@@ -380,7 +380,7 @@ class LoopFinalizeTests(unittest.TestCase):
             stage_results=[{"loop": 1, "ok": False}],
             base_max_loops=2,
             exploit_rewrite_extra_loops=1,
-            rewrite_elapsed_sec=999.0,
+            rewrite_elapsed_sec=1.0,
             exploit_rewrite_same_error_streak=0,
             terminal_non_actionable_verify_streak=0,
             exploit_rewrite_last_error="timeout",
@@ -416,7 +416,7 @@ class LoopFinalizeTests(unittest.TestCase):
         self.assertFalse(outcome.should_break)
         self.assertTrue(any("continue until terminal exploit reaches shell/flag" in note for note in notes))
 
-    def test_evaluate_loop_stop_ignores_rewrite_wall_in_until_success_mode(self) -> None:
+    def test_evaluate_loop_stop_stops_on_rewrite_wall_in_until_success_mode(self) -> None:
         notes = []
         outcome = evaluate_loop_stop(
             notes=notes,
@@ -466,7 +466,8 @@ class LoopFinalizeTests(unittest.TestCase):
             timeout_gate_stop_on_trigger=False,
         )
 
-        self.assertFalse(outcome.should_break)
+        self.assertTrue(outcome.should_break)
+        self.assertIn("wall-time limit hit", outcome.exploit_rewrite_stop_reason)
 
 
 if __name__ == "__main__":

@@ -62,7 +62,13 @@
         "stage": "gdb_evidence",
         "result.ok": true
       }
-    }
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
   },
   "notes": "本地 no-Codex benchmark，使用显式 crash seed 验证 portable recon + gdb_evidence 冷启动路径"
 }

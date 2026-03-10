@@ -449,9 +449,13 @@ def evaluate_loop_stop(
         )
 
     next_stop_reason = str(current_exploit_rewrite_stop_reason or "")
-    if exploit_rewrite_enabled and loop_terminal_unsolved and (not exploit_rewrite_until_success):
+    if exploit_rewrite_enabled and loop_terminal_unsolved:
         loops_used = int(loop_idx - loop_start + 1)
         extra_used = max(0, loops_used - base_max_loops)
+        extra_loops_budget = int(exploit_rewrite_extra_loops)
+        if exploit_rewrite_until_success:
+            extra_used = 0
+            extra_loops_budget = -1
         rewrite_stop_eval = evaluate_exploit_rewrite_stop(
             rewrite_elapsed_sec=rewrite_elapsed_sec,
             max_wall_sec=exploit_rewrite_max_wall_sec,
@@ -461,7 +465,7 @@ def evaluate_loop_stop(
             non_actionable_verify_streak=terminal_non_actionable_verify_streak,
             non_actionable_verify_limit=exploit_rewrite_stop_on_non_actionable_verify_streak,
             extra_used=extra_used,
-            extra_loops_budget=exploit_rewrite_extra_loops,
+            extra_loops_budget=extra_loops_budget,
             is_timeout_like_error=is_timeout_like_error_fn,
         )
         if rewrite_stop_eval.keep_rewriting_note:

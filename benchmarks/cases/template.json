@@ -35,7 +35,13 @@
       "report": {
         "session_id": "{{SESSION_ID}}"
       }
-    }
+    },
+    "notes_contains": [
+      "portable runtime path"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
   },
   "notes": "复制本文件并改名为你的 case_id.json；如需更贴近 host-side Codex CLI，可在 env / *_args 中显式描述运行面，并用 expect 描述这题被视为成功的最小结果面。若要在 no-Codex 路径验证本地 gdb 证据，可在 env 中加 DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING=1，并提供 DIRGE_LOCAL_GDB_STDIN_TEXT / HEX / FILE。"
 }

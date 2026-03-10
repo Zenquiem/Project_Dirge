@@ -197,6 +197,20 @@ def _case_expect(case: Mapping[str, Any]) -> Dict[str, Any]:
             cleaned_json_paths[dotted] = dict(value)
         out["report_json_paths"] = cleaned_json_paths
 
+    for key in ("notes_contains", "notes_absent"):
+        if key not in raw:
+            continue
+        items = raw.get(key)
+        if not isinstance(items, list):
+            raise ValueError(f"expect.{key} must be a list")
+        cleaned = []
+        for item in items:
+            needle = str(item).strip()
+            if not needle:
+                raise ValueError(f"expect.{key} entries must be non-empty strings")
+            cleaned.append(needle)
+        out[key] = cleaned
+
     return out
 
 
@@ -751,6 +765,48 @@ def evaluate_case_expectations(item: Dict[str, Any], expect: Mapping[str, Any]) 
             json_report_checks[str(dotted_path)] = entry
         if json_report_checks:
             checks["report_json_paths"] = json_report_checks
+
+    notes = [str(x).strip() for x in (run_output.get("notes") or []) if str(x).strip()]
+
+    notes_contains = expect.get("notes_contains", [])
+    if isinstance(notes_contains, list) and notes_contains:
+        contains_checks: List[Dict[str, Any]] = []
+        for needle in notes_contains:
+            expanded_needle = _expand_expect_placeholder(str(needle), item=item)
+            matched_note = next((note for note in notes if expanded_needle in note), "")
+            ok = bool(matched_note)
+            contains_checks.append(
+                {
+                    "ok": ok,
+                    "expected_contains": expanded_needle,
+                    "raw_expected": needle,
+                    "matched_note": matched_note,
+                }
+            )
+            if not ok:
+                errors.append(f"notes_contains missing substring: expected_contains={expanded_needle!r}")
+        if contains_checks:
+            checks["notes_contains"] = contains_checks
+
+    notes_absent = expect.get("notes_absent", [])
+    if isinstance(notes_absent, list) and notes_absent:
+        absent_checks: List[Dict[str, Any]] = []
+        for needle in notes_absent:
+            expanded_needle = _expand_expect_placeholder(str(needle), item=item)
+            matched_note = next((note for note in notes if expanded_needle in note), "")
+            ok = not matched_note
+            absent_checks.append(
+                {
+                    "ok": ok,
+                    "expected_absent": expanded_needle,
+                    "raw_expected": needle,
+                    "matched_note": matched_note,
+                }
+            )
+            if not ok:
+                errors.append(f"notes_absent matched forbidden substring: expected_absent={expanded_needle!r}")
+        if absent_checks:
+            checks["notes_absent"] = absent_checks
 
     return {"ok": len(errors) == 0, "errors": errors, "checks": checks}
 

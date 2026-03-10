@@ -32,6 +32,8 @@ Case 字段（常用）：
 - `report_paths`：对 `run_session.py` 最终 JSON 输出里的路径字段做存在性断言；值可为 `"file"` / `"dir"` / `"exists"`，例如 `{"report": "file", "stage_results[0].stage_receipt": "file"}`
 - `report_path_contains`：对 `run_session.py` 输出里的路径字段做子串断言，适合要求产物路径明确属于当前 benchmark session；支持 `{{SESSION_ID}}` 占位符，例如 `{"report": "{{SESSION_ID}}"}`
 - `report_json_paths`：先取 `run_session.py` 输出里的某个 JSON 文件路径，再对该 JSON 内部字段做点路径精确匹配；适合验证 stage receipt / acceptance report / summary report 的嵌入身份没有串线，例如 `{"stage_results[0].stage_receipt": {"session_id": "{{SESSION_ID}}", "stage": "recon"}}`
+- `notes_contains`：要求最终 `run_session.py` 输出里的 `notes[]` 至少包含这些子串；适合锁定“到底走了哪条 runtime-adapter / recovery path”，避免 benchmark 绿了但其实已经悄悄退回别的实现面
+- `notes_absent`：要求最终 `notes[]` 不得包含这些子串；适合明确禁止某些 OpenClaw 特化、旧 fallback、或你不想再看到的退化路径
 
 说明：
 - 默认仍走 `start_session.sh --no-codex` + `run_session.py`，适合当前开发/重构环境。
