@@ -56,6 +56,38 @@ class DecisionConfigTests(unittest.TestCase):
         self.assertEqual(7, cfg.timeout_gate.consecutive_loops)
         self.assertFalse(cfg.timeout_gate.stop_on_trigger)
 
+    def test_load_decision_runtime_config_clamps_defaults_and_ignores_non_dicts(self) -> None:
+        cfg = load_decision_runtime_config(
+            {
+                "strategy_route_switch": {
+                    "no_progress_loops": 0,
+                    "terminal_unsolved_streak": -5,
+                    "request_hint_after_switches": -2,
+                    "cycle": "ret2win,ret2libc",
+                },
+                "hint_request_gate": {
+                    "no_progress_loops": -3,
+                    "no_new_evidence_minutes": -1,
+                },
+                "blind_mode": [],
+                "timeout_no_evidence_gate": {
+                    "consecutive_timeout_loops": 0,
+                },
+            },
+            normalize_strategy_hint_fn=lambda value: str(value or "").strip().lower(),
+            normalize_strategy_hint_cycle_fn=lambda items, state=None: [str(items)],
+            state={},
+        )
+        self.assertEqual(1, cfg.strategy_route_switch.no_progress_loops)
+        self.assertEqual(1, cfg.strategy_route_switch.terminal_unsolved_loops)
+        self.assertEqual(0, cfg.strategy_route_switch.request_hint_after)
+        self.assertEqual(["ret2win,ret2libc"], cfg.strategy_route_switch.cycle)
+        self.assertEqual(0, cfg.hint_gate.no_progress_loops)
+        self.assertEqual(0.0, cfg.hint_gate.no_new_evidence_sec)
+        self.assertTrue(cfg.blind_mode.enabled)
+        self.assertEqual("js_shell_cmd_exec", cfg.blind_mode.default_strategy_hint)
+        self.assertEqual(2, cfg.timeout_gate.consecutive_loops)
+
 
 if __name__ == "__main__":
     unittest.main()

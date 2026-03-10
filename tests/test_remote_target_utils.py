@@ -30,6 +30,24 @@ class RemoteTargetUtilsTests(unittest.TestCase):
     def test_extract_remote_target_returns_empty_when_missing(self) -> None:
         self.assertEqual(("", 0), extract_remote_target({}))
 
+    def test_extract_remote_target_skips_invalid_ports_and_non_dict_nodes(self) -> None:
+        state = {
+            "session": {"remote": {"target": {"host": "sess.host", "port": 0}}},
+            "challenge": {
+                "remote": "not-a-dict",
+                "target": {"host": "target.host", "port": "31337"},
+                "remote_host": "legacy.host",
+                "remote_port": 9999,
+            },
+        }
+        self.assertEqual(("target.host", 31337), extract_remote_target(state))
+
+        bad = {
+            "session": {"remote": {"target": {"host": "", "port": 10001}}},
+            "challenge": {"target": {"host": "chal.host", "port": "bad"}},
+        }
+        self.assertEqual(("", 0), extract_remote_target(bad))
+
 
 if __name__ == "__main__":
     unittest.main()
