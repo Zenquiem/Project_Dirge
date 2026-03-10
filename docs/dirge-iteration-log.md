@@ -35,3 +35,12 @@ Phase 1 — audit and baseline tightening
 - Added regression coverage for stale/mismatched receipt wiring in `tests/test_state_utils.py`
 - Verification: `python3 -m unittest discover -s tests -q` → `68 tests`, passing; `python3 -m compileall core scripts tests` passing
 - Why this matters: reduces false-positive stage readiness when `artifacts_index.latest.paths` accidentally points at an old or wrong-stage receipt
+
+## 2026-03-10 21:18 CST — Meta/state sync drift guard aligned
+
+- Audited `scripts/session_state_sync.py` against the CLI sync path in `scripts/sync_state_meta.py`
+- Hardened in-process meta sync so session-scoped fields only update when `state.session.session_id` matches the target session, avoiding cross-session metadata drift during orchestration/recovery flows
+- Synced objective projection to carry `competition_reasons` and preserve `latest_run` updates independently of session-scoped syncing
+- Added regression tests in `tests/test_session_state_sync.py` for both mismatch guarding and objective reason propagation
+- Verification: `python3 -m unittest discover -s tests -q` → `70 tests`, passing; `python3 -m compileall core scripts tests` passing
+- Why this matters: keeps UI/session metadata consistent with the canonical state owner, and makes evidence/verification success reasons survive meta sync instead of being silently dropped
