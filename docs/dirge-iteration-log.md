@@ -68,3 +68,12 @@ Phase 1 — audit and baseline tightening
 - Added regression coverage in `tests/test_state_utils.py` to prove `exploit_l4_receipt` now trips session/loop mismatch errors just like single-token stages already did
 - Verification: `python3 -m unittest discover -s tests -q` → `73 tests`, passing; `python3 -m compileall core scripts tests` passing
 - Why this matters: closes a false-negative hole in the evidence/verification flow where later-stage receipts could drift across sessions/loops without being flagged, despite earlier hardening intended to catch exactly that
+
+## 2026-03-10 22:00 CST — CLI meta sync now preserves challenge provenance
+
+- Audited drift between in-process `scripts/session_state_sync.py` and CLI `scripts/sync_state_meta.py`
+- Fixed CLI sync so it creates/populates `sessions/<sid>/meta.json.challenge` from state when missing, instead of only mutating pre-existing challenge metadata
+- Synced `challenge.import_meta.source_dir` into meta, matching the in-process path and preserving imported challenge provenance for dashboards and post-run review
+- Added regression coverage in `tests/test_sync_state_meta.py` for challenge metadata creation/population while keeping the earlier competition-reason path intact
+- Verification: `python3 -m unittest tests.test_sync_state_meta -q`, `python3 -m unittest discover -s tests -q` → `74 tests`, and `python3 -m compileall core scripts tests` passing
+- Why this matters: removes another state/meta divergence where non-orchestrator syncs could silently drop binary/workdir/source provenance, weakening evidence review and session introspection

@@ -80,6 +80,55 @@ class SyncStateMetaCliTests(unittest.TestCase):
             )
             self.assertEqual(["exploit_l4"], written["objective"]["missing_stages"])
 
+    def test_main_creates_and_populates_challenge_meta_from_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "state.json"
+            meta_path = root / "sessions" / "sess-a" / "meta.json"
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(json.dumps({"status": "pending"}), encoding="utf-8")
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "session": {"session_id": "sess-a", "status": "running"},
+                        "challenge": {
+                            "name": "demo-bin",
+                            "binary_path": "/tmp/demo-bin",
+                            "workdir": "/tmp/work",
+                            "import_meta": {"source_dir": "/imports/demo"},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(sync_state_meta, "ROOT_DIR", str(root)):
+                with patch.object(sync_state_meta, "DEFAULT_STATE", str(state_path)):
+                    with patch.object(
+                        sys,
+                        "argv",
+                        [
+                            "sync_state_meta.py",
+                            "--state",
+                            str(state_path),
+                            "--session-id",
+                            "sess-a",
+                        ],
+                    ):
+                        rc = sync_state_meta.main()
+
+            self.assertEqual(0, rc)
+            written = json.loads(meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                {
+                    "name": "demo-bin",
+                    "binary_path": "/tmp/demo-bin",
+                    "work_dir": "/tmp/work",
+                    "source_dir": "/imports/demo",
+                },
+                written["challenge"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -158,12 +158,20 @@ def main() -> int:
             meta["remote"] = remote
             changed = True
 
-        ch_meta = meta.get("challenge", {}) if isinstance(meta.get("challenge", {}), dict) else {}
-        if ch_meta:
+        if challenge:
+            ch_meta = meta.setdefault("challenge", {})
+            if not isinstance(ch_meta, dict):
+                ch_meta = {}
             for sk, mk in [("name", "name"), ("workdir", "work_dir"), ("binary_path", "binary_path")]:
-                if sk in challenge and challenge.get(sk) and ch_meta.get(mk) != challenge.get(sk):
-                    ch_meta[mk] = challenge.get(sk)
+                value = challenge.get(sk)
+                if value and ch_meta.get(mk) != value:
+                    ch_meta[mk] = value
                     changed = True
+            import_meta = challenge.get("import_meta", {}) if isinstance(challenge.get("import_meta", {}), dict) else {}
+            source_dir = str(import_meta.get("source_dir", "")).strip()
+            if source_dir and ch_meta.get("source_dir") != source_dir:
+                ch_meta["source_dir"] = source_dir
+                changed = True
             meta["challenge"] = ch_meta
 
         latest_paths = state.get("artifacts_index", {}).get("latest", {}).get("paths", {})
