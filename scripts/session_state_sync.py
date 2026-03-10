@@ -7,6 +7,8 @@ import subprocess
 import sys
 from typing import Any, Callable, Dict
 
+from core.meta_sync_utils import promote_remote_verification_meta
+
 
 def sync_meta_from_state(
     root_dir: str,
@@ -118,6 +120,8 @@ def sync_meta_from_state(
             meta["latest_run"]["metrics"] = metrics_rel
         if now:
             meta["latest_run"]["updated_utc"] = now
+
+    promote_remote_verification_meta(root_dir=root_dir, state=state, meta=meta)
 
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)

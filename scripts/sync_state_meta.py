@@ -4,13 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict
+
+from core.meta_sync_utils import promote_remote_verification_meta
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_STATE = os.path.join(ROOT_DIR, "state", "state.json")
-FLAG_RE = re.compile(r"(?:flag|ctf|cyberpeace)\{[^\r\n]{2,200}\}", re.IGNORECASE)
 
 
 def utc_now() -> str:
@@ -31,50 +31,6 @@ def _save_json(path: str, data: Dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def _resolve_repo_path(raw: str) -> str:
-    p = str(raw or "").strip()
-    if not p:
-        return ""
-    if os.path.isabs(p):
-        return p
-    return os.path.join(ROOT_DIR, p)
-
-
-def _remote_report_indicates_success(report_path: str) -> bool:
-    ap = _resolve_repo_path(report_path)
-    if not ap or (not os.path.exists(ap)) or (not os.path.isfile(ap)):
-        return False
-    if ap.lower().endswith(".json"):
-        doc = _load_json(ap, {})
-        if isinstance(doc, dict):
-            for k in ["ok", "remote_ok", "success", "verified", "last_remote_ok"]:
-                if k in doc and bool(doc.get(k)):
-                    return True
-            verify = doc.get("verify", {}) if isinstance(doc.get("verify", {}), dict) else {}
-            if bool(verify.get("ok", False)):
-                return True
-            try:
-                payload = json.dumps(doc, ensure_ascii=False)
-            except Exception:
-                payload = ""
-            if payload and FLAG_RE.search(payload):
-                return True
-    try:
-        with open(ap, "rb") as f:
-            data = f.read(16384)
-        txt = data.decode("latin-1", errors="ignore")
-    except Exception:
-        txt = ""
-    low = txt.lower()
-    if "__pwn_verify_ok__" in low:
-        return True
-    if "you pwned me" in low:
-        return True
-    if FLAG_RE.search(txt):
-        return True
-    return False
 
 
 def main() -> int:
@@ -218,63 +174,8 @@ def main() -> int:
         meta["latest_run"] = latest
 
     # Drift guard: remote flag already captured but meta/status still shows failed.
-    remote_state = sess.get("remote", {}) if isinstance(sess.get("remote", {}), dict) else {}
-    remote_meta = meta.get("remote", {}) if isinstance(meta.get("remote", {}), dict) else {}
-    remote_ok = bool(remote_state.get("last_remote_ok", False) or remote_meta.get("last_remote_ok", False))
-    report_candidates: List[str] = []
-
-    def _push_report(p: str) -> None:
-        s = str(p or "").strip()
-        if (not s) or (s in report_candidates):
-            return
-        report_candidates.append(s)
-
-    for src in [remote_state, remote_meta]:
-        if isinstance(src, dict):
-            _push_report(str(src.get("last_remote_report", "")).strip())
-    latest_state = state.get("artifacts_index", {}).get("latest", {}).get("paths", {})
-    latest_meta = meta.get("latest_artifacts", {}) if isinstance(meta.get("latest_artifacts", {}), dict) else {}
-    for src in [latest_state, latest_meta]:
-        if not isinstance(src, dict):
-            continue
-        for key in [
-            "remote_exp_verify_report",
-            "remote_run_report",
-            "remote_flag_report",
-            "remote_flag_capture_report",
-            "remote_exp_success",
-            "remote_exp_success_report",
-            "remote_flag_raw",
-        ]:
-            _push_report(str(src.get(key, "")).strip())
-
-    if (not remote_ok) and report_candidates:
-        remote_ok = any(_remote_report_indicates_success(p) for p in report_candidates)
-
-    if remote_ok:
-        remote_meta = meta.get("remote", {}) if isinstance(meta.get("remote", {}), dict) else {}
-        if not bool(remote_meta.get("last_remote_ok", False)):
-            remote_meta["last_remote_ok"] = True
-            changed = True
-        meta["remote"] = remote_meta
-
-        cur_status = str(meta.get("status", "")).strip()
-        if cur_status not in {"finished", "finished_with_errors", "remote_verified"}:
-            meta["status"] = "remote_verified"
-            changed = True
-
-        obj_meta = meta.get("objective", {}) if isinstance(meta.get("objective", {}), dict) else {}
-        if not bool(obj_meta.get("competition_target_achieved", False)):
-            obj_meta["competition_target_achieved"] = True
-            changed = True
-        reasons = obj_meta.get("competition_reasons", [])
-        if not isinstance(reasons, list):
-            reasons = []
-        if "session.remote.last_remote_ok=true" not in reasons:
-            reasons.append("session.remote.last_remote_ok=true")
-            obj_meta["competition_reasons"] = reasons
-            changed = True
-        meta["objective"] = obj_meta
+    if promote_remote_verification_meta(root_dir=ROOT_DIR, state=state, meta=meta):
+        changed = True
 
     out = {
         "ok": True,

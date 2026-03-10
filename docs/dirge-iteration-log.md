@@ -85,3 +85,12 @@ Phase 1 — audit and baseline tightening
 - Added regression coverage in `tests/test_session_stage_post.py` to lock the compacted schema and prove truncation/signal preservation for verifier findings
 - Verification: `python3 -m unittest tests.test_session_stage_post -q`, `python3 -m unittest discover -s tests -q` → `75 tests`, and `python3 -m compileall core scripts tests` passing
 - Why this matters: keeps evidence/verification flow reviewable during exploit failures, reduces report bloat, and makes downstream failure triage consume a more stable verifier summary
+
+## 2026-03-10 22:24 CST — In-process meta sync now shares remote-verification promotion
+
+- Audited drift between in-process `scripts/session_state_sync.py` and CLI `scripts/sync_state_meta.py` around remote verification promotion
+- Extracted shared remote-report success heuristics into `core/meta_sync_utils.py` and wired both sync paths to use the same promotion logic
+- In-process sync now promotes `sessions/<sid>/meta.json` to `remote_verified` when remote verification artifacts prove success, even if `state.session.remote.last_remote_ok` has not been flipped yet
+- Added regression coverage in `tests/test_session_state_sync.py` for report-driven promotion, while preserving the earlier mismatch guard and competition-reason sync behavior
+- Verification: `python3 -m unittest tests.test_session_state_sync tests.test_sync_state_meta -q`, `python3 -m unittest discover -s tests -q` → `76 tests`, and `python3 -m compileall core scripts tests` passing
+- Why this matters: removes another CLI vs orchestrator drift point in the evidence/state/verification flow, so dashboards and post-run review see the same remote-verification outcome regardless of which sync path ran last

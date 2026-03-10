@@ -95,10 +95,51 @@ class SessionStateSyncTests(unittest.TestCase):
             sync_meta_from_state(str(root), "sess-a", state)
             written = json.loads(meta_path.read_text(encoding="utf-8"))
 
-            self.assertEqual("running", written["status"])
+            self.assertEqual("remote_verified", written["status"])
             self.assertTrue(written["objective"]["competition_target_achieved"])
             self.assertEqual(["session.remote.last_remote_ok=true"], written["objective"]["competition_reasons"])
             self.assertEqual(["exploit_l4"], written["objective"]["missing_stages"])
+
+    def test_sync_meta_from_state_promotes_remote_verified_from_report_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_path = root / "sessions" / "sess-a" / "meta.json"
+            report_path = root / "artifacts" / "reports" / "remote_verify.json"
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(json.dumps({"status": "failed:exploit_l4"}), encoding="utf-8")
+            report_path.write_text(json.dumps({"verify": {"ok": True}}), encoding="utf-8")
+
+            state = {
+                "session": {
+                    "session_id": "sess-a",
+                    "status": "failed:exploit_l4",
+                    "remote": {"last_remote_ok": False},
+                },
+                "artifacts_index": {
+                    "latest": {
+                        "paths": {
+                            "remote_exp_verify_report": "artifacts/reports/remote_verify.json",
+                        }
+                    }
+                },
+                "progress": {
+                    "objectives": {
+                        "score": 9,
+                        "target_achieved": False,
+                        "competition_target_achieved": False,
+                        "competition_reasons": [],
+                    }
+                },
+            }
+
+            sync_meta_from_state(str(root), "sess-a", state)
+            written = json.loads(meta_path.read_text(encoding="utf-8"))
+
+            self.assertEqual("remote_verified", written["status"])
+            self.assertTrue(written["remote"]["last_remote_ok"])
+            self.assertTrue(written["objective"]["competition_target_achieved"])
+            self.assertIn("session.remote.last_remote_ok=true", written["objective"]["competition_reasons"])
 
 
 if __name__ == "__main__":
