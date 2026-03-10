@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, List, Tuple
 
 
@@ -34,6 +35,19 @@ def _expected_receipt_stage_for_key(key: str) -> str:
     return ""
 
 
+def _parse_receipt_path_expectations(abs_path: str) -> Tuple[str, str, int]:
+    name = os.path.basename(str(abs_path or "").strip())
+    match = re.match(r"^stage_receipt_(.+)_(\d+)_([^_]+)\.json$", name)
+    if not match:
+        return "", "", -1
+    session_id, loop_str, stage = match.groups()
+    try:
+        loop_idx = int(loop_str)
+    except ValueError:
+        loop_idx = -1
+    return session_id.strip(), stage.strip(), loop_idx
+
+
 def _validate_receipt_artifact(abs_path: str, artifact_key: str) -> List[str]:
     expected_stage = _expected_receipt_stage_for_key(artifact_key)
     if not expected_stage:
@@ -46,12 +60,33 @@ def _validate_receipt_artifact(abs_path: str, artifact_key: str) -> List[str]:
     except json.JSONDecodeError as exc:
         return [f"required receipt invalid json: latest.paths.{artifact_key} -> {exc}"]
 
+    errors: List[str] = []
     actual_stage = str(receipt.get("stage", "")).strip()
     if actual_stage != expected_stage:
-        return [
+        errors.append(
             f"required receipt stage mismatch: latest.paths.{artifact_key} -> expected {expected_stage}, got {actual_stage or '<empty>'}"
-        ]
-    return []
+        )
+
+    path_session_id, path_stage, path_loop_idx = _parse_receipt_path_expectations(abs_path)
+    if path_stage and path_stage != expected_stage:
+        errors.append(
+            f"required receipt path/stage mismatch: latest.paths.{artifact_key} -> expected {expected_stage}, got {path_stage}"
+        )
+    receipt_session_id = str(receipt.get("session_id", "")).strip()
+    if path_session_id and receipt_session_id != path_session_id:
+        errors.append(
+            "required receipt session mismatch: "
+            f"latest.paths.{artifact_key} -> expected {path_session_id}, got {receipt_session_id or '<empty>'}"
+        )
+    receipt_loop_raw = receipt.get("loop")
+    receipt_loop_idx = int(receipt_loop_raw) if isinstance(receipt_loop_raw, int) else -1
+    if path_loop_idx >= 0 and receipt_loop_idx != path_loop_idx:
+        errors.append(
+            "required receipt loop mismatch: "
+            f"latest.paths.{artifact_key} -> expected {path_loop_idx}, got "
+            f"{receipt_loop_idx if receipt_loop_idx >= 0 else '<empty>'}"
+        )
+    return errors
 
 
 def validate_stage_runner_spec(state: Dict[str, Any], stage_spec: Dict[str, Any], *, root_dir: str) -> List[str]:

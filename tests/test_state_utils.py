@@ -57,6 +57,20 @@ class StateUtilsTests(unittest.TestCase):
             errors = validate_stage_runner_spec(state, spec, root_dir=tmp)
             self.assertTrue(any("required receipt stage mismatch" in err for err in errors))
 
+    def test_validate_stage_runner_spec_reports_receipt_session_and_loop_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_rel = "artifacts/reports/stage_receipt_sess-1_03_recon.json"
+            artifact_abs = os.path.join(tmp, artifact_rel)
+            os.makedirs(os.path.dirname(artifact_abs), exist_ok=True)
+            with open(artifact_abs, "w", encoding="utf-8") as f:
+                json.dump({"stage": "recon", "session_id": "sess-2", "loop": 4}, f)
+
+            state = {"artifacts_index": {"latest": {"paths": {"recon_receipt": artifact_rel}}}}
+            spec = {"required_artifact_keys": ["recon_receipt"]}
+            errors = validate_stage_runner_spec(state, spec, root_dir=tmp)
+            self.assertTrue(any("required receipt session mismatch" in err for err in errors))
+            self.assertTrue(any("required receipt loop mismatch" in err for err in errors))
+
     def test_validate_stage_runner_spec_reports_missing_requirements(self) -> None:
         state = {"artifacts_index": {"latest": {"paths": {}}}, "dynamic_evidence": {"evidence": []}}
         spec = {

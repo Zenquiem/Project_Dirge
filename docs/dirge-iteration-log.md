@@ -44,3 +44,11 @@ Phase 1 — audit and baseline tightening
 - Added regression tests in `tests/test_session_state_sync.py` for both mismatch guarding and objective reason propagation
 - Verification: `python3 -m unittest discover -s tests -q` → `70 tests`, passing; `python3 -m compileall core scripts tests` passing
 - Why this matters: keeps UI/session metadata consistent with the canonical state owner, and makes evidence/verification success reasons survive meta sync instead of being silently dropped
+
+## 2026-03-10 21:24 CST — Receipt identity checks tightened
+
+- Audited `core/state_utils.py` receipt validation in the stage-spec enforcement path
+- Hardened required `*_receipt` validation to also verify embedded `session_id` and `loop` against the canonical `stage_receipt_<session>_<loop>_<stage>.json` path, not just the stage field
+- Added regression coverage in `tests/test_state_utils.py` for stale/cross-session receipt aliasing where the path points at one run but the JSON payload belongs to another
+- Verification: `python3 -m unittest discover -s tests -q` and `python3 -m compileall core scripts tests`
+- Why this matters: reduces false-positive verification when `artifacts_index.latest.paths.*_receipt` drifts across sessions/loops during retries, recovery, or manual repair flows
