@@ -244,6 +244,21 @@ Phase 1 — audit and baseline tightening
   - `python3 scripts/replay_benchmarks.py --only demo_local_gdb --allow-codex-missing` → passing with acceptance/receipt payload identity checks satisfied
 - Why this matters: this closes another false-green lane in the benchmark harness by requiring the evidence payload itself to belong to the current run, which is directly useful for recoverability, debugging, and future host-side regression gating
 
+## 2026-03-12 22:18 CST — State-path benchmark expectations now lock session identity, and fresh replay exposed two live local-gdb regressions
+
+- Audited `scripts/replay_benchmarks.py` again for remaining false-green seams and found that `expect.state_paths` still compared raw literals only, unlike `report_path_contains` / `report_json_paths`; that meant benchmark cases could lock artifact filenames/payloads to the current session but still could not assert that the loaded state itself belonged to the current replay session.
+- Updated `scripts/replay_benchmarks.py` so `expect.state_paths` also expands `{{SESSION_ID}}`, and now records both the expanded value and original raw expectation in per-check diagnostics.
+- Extended `tests/test_replay_benchmarks.py` synthetic state coverage to assert `session.session_id` and `challenge.import_meta.session_id` through the new placeholder path.
+- Upgraded `benchmarks/cases/demo_local_gdb.json`, `benchmarks/cases/template.json`, and `benchmarks/README.md` so the benchmark contract can explicitly require state-level session identity, not just fresh-looking report filenames.
+- Verification:
+  - `python3 -m unittest tests.test_replay_benchmarks` → passing
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_local_gdb` → passing with new `state_paths.session.session_id == {{SESSION_ID}}` / `challenge.import_meta.session_id == {{SESSION_ID}}` checks satisfied
+- While refreshing replay, found a more important benchmark-facing issue that should not be hidden: targeted no-Codex local-gdb cases `demo_local_nonpie_sendline` and `demo_local_offset` now reproduce expectation failures on this host even though stage execution itself still returns green. Current evidence shape regresses to `capabilities.offset_to_rip=0` / missing `gdb.offset_to_rip` / missing seeded-input metadata, and the non-PIE sendline case also reports `pie_base=0x401170` with `pc_offset=0x0` instead of the expected base+offset split.
+- Reproduced failures with:
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_nonpie_sendline`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_offset`
+- Why this matters: the new placeholder support tightens replay honesty for both OpenClaw and host-side Codex-style runs, and the newly surfaced offset/control regressions are exactly the kind of real challenge-facing evidence bug the next cycle should chase instead of papering over with broader baseline assumptions.
+
 ## 2026-03-11 04:02 CST — Benchmark contract now locks the chosen runtime-adapter path via `notes[]`
 
 - Audited the current cold benchmark again and found one remaining portability blind spot: even with stage/evidence/receipt checks, the replay harness still could not assert *which runtime-adapter path* produced the green result
@@ -268,3 +283,88 @@ Phase 1 — audit and baseline tightening
   - `python3 -m unittest discover -s tests -q` → `98 tests`, passing
   - `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` → passing
 - Why this matters: this is a direct host-runtime stability fix, not framework polish — exploit rewrite can still stay aggressive when asked, but it no longer has an accidental infinite/unsafe tail when the portable runtime has already proven it is stuck
+
+## 2026-03-12 22:34 CST — Local no-Codex gdb fallback now restores seeded-input metadata and non-PIE offset evidence
+
+- Chased the concrete replay regressions surfaced in the previous cycle instead of relaxing the benchmark contract: `demo_local_nonpie_sendline` and `demo_local_offset` were stage-green but still failing expectation checks because `run_local_gdb_fallback()` had drifted from the shared seed/gdb parsing logic.
+- Root causes found in `scripts/run_session.py`:
+  - local fallback parsed `pie_base` from the whole combined gdb transcript, so non-PIE runs could latch onto a backtrace/register address (`0x401170`) instead of the binary mapping base (`0x400000`)
+  - local fallback still used its own minimal stdin selector and never emitted shared seed metadata (`stdin_kind`, cyclic-window fields), so replay could not prove how the crash was triggered
+  - local fallback never issued a stack probe or recovered `offset_to_rip` from cyclic input + stack words, so capability/state summaries stayed at `offset_to_rip=0` even when the crash clearly showed control on the stack
+- Fixed `run_local_gdb_fallback()` to reuse the shared capability core instead of another one-off parser:
+  - switched seed selection to `core.stdin_seed_utils.select_seed_input()`
+  - added shared cyclic-window detection and persisted `kind`, `stdin_source`, `cyclic_compatible`, `cyclic_window_len`, and `cyclic_span` into `dynamic_evidence.inputs[]`
+  - added ABI-aware stack probing via `core.gdb_evidence_utils.stack_probe_command()`
+  - parsed mappings/registers with the shared gdb helpers and restricted `parse_pie_base()` to the mappings block, fixing the non-PIE base/offset split
+  - recovered `offset_to_rip` from cyclic-compatible seeded input plus stack/rip words and propagated it into `dynamic_evidence.evidence[].gdb`, `state.gdb`, `capabilities`, and `latest_bases`
+- Added regression coverage in `tests/test_run_session_missing_codex.py` for:
+  - seeded-text metadata persistence on the local fallback path
+  - a synthetic non-PIE cyclic-sendline crash that now proves `pie_base=0x400000`, `pc_offset=0x1170`, and `offset_to_rip=88`
+- Verification:
+  - `python3 -m unittest tests.test_run_session_missing_codex -q`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_nonpie_sendline`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_offset`
+  - `python3 -m unittest tests.test_run_session_missing_codex tests.test_replay_benchmarks -q`
+- Result: both previously red targeted local-gdb no-Codex replay cases are green again with the stronger benchmark contract still intact.
+- Important failure visibility / deferred follow-up:
+  - `python3 -m unittest tests.test_run_session_missing_codex tests.test_replay_benchmarks tests.test_gdb_direct_probe -q` currently fails before running the direct-probe tests because `tests.test_gdb_direct_probe` imports `_abi_info` from `scripts.gdb_direct_probe`, but that symbol is not currently exported there. This appears to be a pre-existing direct-probe/unit-test drift, not a regression introduced by the local-fallback fix.
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` is still red against the checked-in baseline, but not because the two local offset/sendline regressions remain. The current gate deltas are: `demo_local_file_nonpie_cwd_dotfile` improved relative to the stale baseline (`run_rc/final_exit_code` now `0` instead of `1`), while `demo_local_gdb_stale_nocontrol` and `demo_local_nocontrol` still regress. Those remaining `nocontrol` cases are the next concrete benchmark-facing seam.
+- Why this matters: this directly improves real challenge-facing evidence quality on the portable no-Codex runtime path used by both OpenClaw and eventual host-side Codex CLI runs. The framework now preserves *how* a crash was triggered and whether control/offset evidence was actually recovered, instead of only marking the stage green.
+
+## 2026-03-12 22:49 CST — Capability inference now lets fresh no-control gdb evidence clear stale RIP-control state
+
+- Reproduced the remaining benchmark seam instead of refreshing the baseline blindly:
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_nocontrol`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_gdb_stale_nocontrol`
+- Both cases were failing for the same real reason: the local fallback had already written `gdb.control_rip=false` / `gdb.offset_to_rip=0`, but top-level `state.capabilities` still stayed at stale `control_rip=true` / `rip_control=yes`.
+- Root cause was in `core/capability_engine.py`, not the fallback collector itself:
+  - `_find_control_rip()` trusted pre-existing top-level `capabilities.control_rip` before looking at fresh `dynamic_evidence`
+  - it also treated any non-zero `gdb.pc_offset` as proof of RIP control, which is wrong for plain crashes because code-location offset and saved-return-address control are not the same thing
+  - once `control_rip` dropped false, `offset_to_rip` was not being cleared from the inferred capability snapshot
+- Fixed `core/capability_engine.py` so capability inference now:
+  - prefers fresh `dynamic_evidence.evidence[].gdb` over stale top-level capability state whenever dynamic evidence exists
+  - only infers RIP control from explicit `gdb.control_rip` or positive `gdb.offset_to_rip`, not from mere `pc_offset`
+  - clears stale `capabilities.offset_to_rip` when fresh evidence says control was not recovered
+- Verification:
+  - `python3 -m unittest tests.test_capability_engine tests.test_run_session_missing_codex tests.test_replay_benchmarks -q`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_nocontrol`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only local_gdb_stale_nocontrol`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate`
+- Result:
+  - `demo_local_nocontrol` and `demo_local_gdb_stale_nocontrol` are green again
+  - replay gate now only reports one delta: `demo_local_file_nonpie_cwd_dotfile` is improved relative to the checked-in baseline (`run_rc/final_exit_code` old `1` -> current `0`), which looks like stale baseline data rather than a fresh regression
+- Important failure visibility / deferred follow-up:
+  - attempted `python3 -m unittest discover -s tests -q` to validate whether baseline refresh would be responsible, but the full suite is currently red for broader pre-existing drift unrelated to this seam. The failing concentration is in `tests.test_codex_with_mcp`, `tests.test_health_check_mcp`, `tests.test_codex_cli_adapter`, and `tests.test_start_session`, with representative failures showing checked-in config/path expectations and wrapper auth/launcher behavior drifting from current code. Because of that broader red baseline, I did **not** treat a full-suite-green claim as part of this cycle and did **not** rely on it to justify a baseline rewrite.
+- Why this matters: this is a portability/stability fix with direct benchmark value. Fresh no-control evidence now actually downgrades exploitability conclusions instead of leaving stale RIP-control state behind, which improves routing/recovery decisions for both OpenClaw runs and future host-side Codex CLI sessions.
+
+## 2026-03-12 23:09 CST — Replay baseline refreshed after confirming the last gate delta was stale data, not a fresh regression
+
+- Re-ran the full replay gate with `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate` and confirmed the only remaining delta was `demo_local_file_nonpie_cwd_dotfile` versus stale checked-in baseline values (`run_rc/final_exit_code` old `1` -> current `0`).
+- Verified this was a benchmark-maintenance issue rather than a new runtime failure: the case now completes with the expected portable local path (`recon` + `gdb_evidence`, acceptance passed, local fallback notes intact), so leaving the old baseline in place would only keep the gate artificially red.
+- Refreshed the checked-in replay baseline with `python3 scripts/replay_benchmarks.py --allow-codex-missing --write-baseline benchmarks/baseline/latest.json`.
+- Verification after refresh: the write-baseline run completed successfully and produced a new baseline from the current 24-case suite (`23` executed / `1` skipped) with gate enforcement back to green on the same portable no-Codex replay surface.
+- Important failure visibility / deferred follow-up:
+  - I did **not** treat the broader unit-test situation as fixed; `python3 -m unittest discover -s tests -q` is still known-red from older wrapper/health/start-session drift plus the `tests.test_gdb_direct_probe` import mismatch, and this baseline refresh should not be read as a substitute for repairing those suites.
+  - I did **not** make a local commit this cycle because the repository worktree still contains a large amount of pre-existing unrelated churn/untracked files; a clean commit should be split once the intended tracked subset is isolated.
+- Why this matters: it restores an honest green replay gate for the current portable benchmark contract instead of leaving the project stuck behind stale expectations, while still keeping real unresolved test/runtime drift visible for the next cycles.
+
+## 2026-03-12 23:31 CST — Direct gdb probe adapter re-aligned with shared helpers; unit slice green again, replay seam still visible
+
+- Chased a concrete portability/test drift that was still explicitly called out in working state: `tests.test_gdb_direct_probe` could not even import because `scripts/gdb_direct_probe.py` had fallen far behind the shared ABI/stack/stdin helper layer and modern `gdb-mcp` surface.
+- Reworked `scripts/gdb_direct_probe.py` to stop acting like an old machine-private one-off and instead align with the current portable contract:
+  - re-used shared ELF ABI / stack parsing / PC-offset helpers from `core.gdb_evidence_utils`
+  - re-used shared stdin seed selection / cyclic-window behavior from `core.stdin_seed_utils`
+  - repo-anchored relative `--state` paths again
+  - accepted PATH-discovered `gdb-mcp` without forcing a fake cwd
+  - restored modern/legacy MCP tool-surface compatibility (`gdb_start` / `gdb_terminate` and `start_binary` / `stop_session`)
+  - normalized JSON-wrapped live-style `gdb_command` output before parsing
+  - cleared stale offset/control hints when fresh direct-gdb evidence no longer proves control
+  - updated state/report emission so direct-probe outputs again carry the expected `gdb.mode/source/stdin_*` fields used by replay assertions
+- Verification:
+  - `python3 -m unittest tests.test_gdb_direct_probe -q` → `36 tests`, passing
+  - `python3 -m unittest tests.test_run_session_missing_codex tests.test_replay_benchmarks -q` → passing (`21 tests`)
+- Important failure visibility / deferred follow-up:
+  - Fresh benchmark run `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_direct_gdb_nonpie` is still red.
+  - Current failure is no longer adapter import drift; it is benchmark-facing orchestration drift: `run_session.py --allow-codex-missing --no-fast` only executes `recon` and never reaches `gdb_evidence`, so replay expectations for direct-gdb evidence/state stay unmet.
+  - I am intentionally logging that failure instead of masking it with a baseline tweak, because the next useful cycle should decide whether the direct no-fast/missing-Codex stage planner regressed or whether replay case/runtime selection is still bypassing the intended direct-probe path.
+- Why this matters: it restores a transferable direct-gdb runtime adapter for both OpenClaw and host-style Codex environments, and it narrows the remaining problem from “adapter/test drift” to a more valuable benchmark-visible orchestration seam.
