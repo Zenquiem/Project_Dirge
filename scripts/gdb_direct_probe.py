@@ -13,19 +13,28 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Tuple
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from core.capability_engine import infer_capabilities, write_capability_report
 from core.gdb_evidence_utils import (
     abi_info as _abi_info,
     compute_pc_offset,
+    cyclic_bytes as _cyclic_bytes,
+    cyclic_find_offset as _cyclic_find_offset,
+    infer_static_stack_smash_offset,
+    parse_fault_address,
     parse_pie_base,
     parse_rip,
     parse_signal,
     parse_stack_top_qword,
     parse_stack_words,
+    recover_offset_hints,
     stack_probe_command as _stack_probe_command,
 )
 from core.stdin_seed_utils import detect_cyclic_window, select_seed_input
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_STATE = os.path.join(ROOT_DIR, "state", "state.json")
 LEGACY_GDB_MCP_CMD = ["/home/zenduk/桌面/mcp/GDB-MCP/.venv/bin/python", "server.py"]
 LEGACY_GDB_MCP_CWD = "/home/zenduk/桌面/mcp/GDB-MCP"
@@ -249,41 +258,6 @@ def gdb_mcp_cwd() -> str:
     return ""
 
 
-def _cyclic_bytes(length: int) -> bytes:
-    length = max(1, int(length))
-    set1 = b"abcdefghijklmnopqrstuvwxyz"
-    set2 = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    set3 = b"0123456789"
-    out = bytearray()
-    for a in set1:
-        for b in set2:
-            for c in set3:
-                out.extend((a, b, c))
-                if len(out) >= length:
-                    return bytes(out[:length])
-    while len(out) < length:
-        out.extend(b"Aa0")
-    return bytes(out[:length])
-
-
-def _cyclic_find_offset(value_hex: str, max_len: int) -> int:
-    try:
-        v = int(str(value_hex).strip(), 16)
-    except Exception:
-        return -1
-    if v <= 0:
-        return -1
-    pat = _cyclic_bytes(max_len + 16)
-    b8 = int(v).to_bytes(8, byteorder="little", signed=False)
-    idx = pat.find(b8)
-    if idx >= 0:
-        return int(idx)
-    idx = pat.find(b8[:4])
-    if idx >= 0:
-        return int(idx)
-    return -1
-
-
 def _cyclic_window_from_input(stdin_bytes: bytes) -> Dict[str, Any]:
     return detect_cyclic_window(stdin_bytes, cyclic_factory=_cyclic_bytes, pattern_span=8192, min_window=4)
 
@@ -378,17 +352,6 @@ def _safe_tools_list(client: MCPStdioClient, timeout_sec: float) -> List[str]:
             if name:
                 out.append(name)
     return out
-
-
-def _extract_offset_from_stack(stack_text: str, cyclic_len: int, allow_offset: bool) -> Tuple[int, str, List[str]]:
-    stack_words = parse_stack_words(stack_text, max_lines=16)
-    if not allow_offset:
-        return -1, "", stack_words
-    for word in stack_words:
-        off = _cyclic_find_offset(word, cyclic_len)
-        if off >= 0:
-            return off, "esp" if len(word) <= 10 else "rsp", stack_words
-    return -1, "", stack_words
 
 
 def _clear_stale_offset(state: Dict[str, Any], evidence_doc: Dict[str, Any]) -> None:
@@ -522,21 +485,32 @@ def main() -> int:
         pie_base = "0x0"
     rip = parse_rip(regs_txt)
     signal = parse_signal(run_txt) or parse_signal(bt_txt) or parse_signal(regs_txt) or "UNKNOWN"
+    fault_addr = parse_fault_address("\n".join([run_txt, bt_txt, stack_txt, regs_txt]))
     pc_offset = compute_pc_offset(rip, pie_base)
     if not pc_offset and (not is_pie) and rip:
         pc_offset = rip
 
     allow_offset = bool(cyclic_info.get("cyclic_compatible"))
-    offset_to_rip = _cyclic_find_offset(rip, cyclic_len) if allow_offset else -1
-    offset_source = "rip"
-    if offset_to_rip < 0:
-        offset_to_rip, offset_source, stack_words = _extract_offset_from_stack(stack_txt, cyclic_len, allow_offset)
-    else:
-        stack_words = parse_stack_words(stack_txt, max_lines=16)
-    control_rip = bool(offset_to_rip >= 0)
-    if not control_rip:
-        offset_to_rip = 0
-        offset_source = ""
+    stack_words = parse_stack_words(stack_txt, max_lines=16)
+    offset_to_rip = 0
+    offset_source = ""
+    fault_offset_candidate = 0
+    static_offset_candidate = 0
+    control_rip = False
+    if allow_offset:
+        offset_hints = recover_offset_hints(
+            value_hex=rip,
+            stack_words=stack_words,
+            cyclic_len=cyclic_len,
+            stack_word_size=_stack_word_size,
+            fault_addr=fault_addr,
+            static_guess=int(infer_static_stack_smash_offset(binary_abs) or 0),
+        )
+        offset_to_rip = int(offset_hints.get("offset_to_rip", 0) or 0)
+        offset_source = str(offset_hints.get("offset_source", "") or "")
+        fault_offset_candidate = int(offset_hints.get("fault_offset_candidate", 0) or 0)
+        static_offset_candidate = int(offset_hints.get("static_offset_candidate", 0) or 0)
+        control_rip = bool(offset_hints.get("control_rip", False))
 
     raw_doc = {
         "generated_utc": utc_now(),
@@ -556,6 +530,9 @@ def main() -> int:
     gdb_doc: Dict[str, Any] = {
         "rip": rip,
         "signal": signal,
+        "fault_addr": fault_addr,
+        "fault_offset_candidate": int(fault_offset_candidate) if fault_offset_candidate > 0 else 0,
+        "static_offset_candidate": int(static_offset_candidate) if static_offset_candidate > 0 else 0,
         "pc_offset": pc_offset,
         "control_rip": control_rip,
         "stack_top_qword": parse_stack_top_qword(stack_txt),
@@ -652,12 +629,18 @@ def main() -> int:
         "stdin_kind": stdin_kind,
         "pc_offset": pc_offset,
         "offset_to_rip": int(offset_to_rip),
+        "fault_offset_candidate": int(fault_offset_candidate) if fault_offset_candidate > 0 else 0,
+        "static_offset_candidate": int(static_offset_candidate) if static_offset_candidate > 0 else 0,
     }
+    inf = infer_capabilities(state, {})
+    cap_report_rel = write_capability_report(root_dir=ROOT_DIR, session_id=sid, loop_idx=loop_idx, inf=inf)
+
     latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
     latest["gdb_raw"] = raw_rel
     latest["gdb_summary"] = summary_rel
     latest["gdb_clusters"] = clusters_rel
     latest["gdb_input"] = input_rel
+    latest["capabilities_report"] = cap_report_rel
 
     caps = state.setdefault("capabilities", {})
     if control_rip:

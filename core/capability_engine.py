@@ -83,6 +83,26 @@ def _find_system_observed(state: Dict[str, Any]) -> bool:
 
 
 def _find_control_rip(state: Dict[str, Any]) -> Tuple[bool, int]:
+    dynamic = _safe_dict(state.get("dynamic_evidence"))
+    evid = _safe_list(dynamic.get("evidence"))
+    if evid:
+        for ev in reversed(evid):
+            if not isinstance(ev, dict):
+                continue
+            g = _safe_dict(ev.get("gdb"))
+            if _as_bool(g.get("control_rip"), default=False):
+                try:
+                    return True, int(g.get("offset_to_rip", 0) or 0)
+                except Exception:
+                    return True, 0
+            try:
+                off = int(g.get("offset_to_rip", 0) or 0)
+            except Exception:
+                off = 0
+            if off > 0:
+                return True, off
+        return False, 0
+
     caps = _safe_dict(state.get("capabilities"))
     if _as_bool(caps.get("control_rip"), default=False):
         off = caps.get("offset_to_rip")
@@ -90,31 +110,47 @@ def _find_control_rip(state: Dict[str, Any]) -> Tuple[bool, int]:
             return True, int(off)
         except Exception:
             return True, 0
+    return False, 0
 
+
+def _find_offset_candidates(state: Dict[str, Any]) -> Tuple[int, int]:
     dynamic = _safe_dict(state.get("dynamic_evidence"))
     evid = _safe_list(dynamic.get("evidence"))
-    for ev in reversed(evid):
-        if not isinstance(ev, dict):
-            continue
-        g = _safe_dict(ev.get("gdb"))
-        if _as_bool(g.get("control_rip"), default=False):
+    if evid:
+        for ev in reversed(evid):
+            if not isinstance(ev, dict):
+                continue
+            g = _safe_dict(ev.get("gdb"))
             try:
-                return True, int(g.get("offset_to_rip", 0) or 0)
+                fault = int(g.get("fault_offset_candidate", 0) or 0)
             except Exception:
-                return True, 0
-        pco_raw = g.get("pc_offset", "")
-        if isinstance(pco_raw, (int, float)):
-            if int(pco_raw) > 0:
-                return True, 0
-        else:
-            pco = str(pco_raw).strip().lower()
-            if pco.startswith("0x"):
-                try:
-                    if int(pco, 16) > 0:
-                        return True, 0
-                except Exception:
-                    pass
-    return False, 0
+                fault = 0
+            try:
+                static = int(g.get("static_offset_candidate", 0) or 0)
+            except Exception:
+                static = 0
+            if fault > 0 or static > 0:
+                return fault, static
+        return 0, 0
+
+    caps = _safe_dict(state.get("capabilities"))
+    try:
+        fault = int(caps.get("fault_offset_candidate", 0) or 0)
+    except Exception:
+        fault = 0
+    try:
+        static = int(caps.get("static_offset_candidate", 0) or 0)
+    except Exception:
+        static = 0
+    if fault > 0 or static > 0:
+        return fault, static
+
+    static_analysis = _safe_dict(state.get("static_analysis"))
+    try:
+        static_guess = int(static_analysis.get("stack_smash_offset_guess", 0) or 0)
+    except Exception:
+        static_guess = 0
+    return 0, static_guess
 
 
 def infer_capabilities(state: Dict[str, Any], infer_cfg: Dict[str, Any]) -> CapabilityInference:
@@ -162,6 +198,26 @@ def infer_capabilities(state: Dict[str, Any], infer_cfg: Dict[str, Any]) -> Capa
         if prev_off != off:
             reasons.append(f"offset_to_rip <- {off}")
         after["offset_to_rip"] = off
+    elif "offset_to_rip" in after:
+        reasons.append("offset_to_rip cleared")
+        after.pop("offset_to_rip", None)
+
+    fault_offset_candidate, static_offset_candidate = _find_offset_candidates(state)
+    if fault_offset_candidate > 0:
+        if after.get("fault_offset_candidate") != fault_offset_candidate:
+            reasons.append(f"fault_offset_candidate <- {fault_offset_candidate}")
+        after["fault_offset_candidate"] = fault_offset_candidate
+    elif "fault_offset_candidate" in after:
+        reasons.append("fault_offset_candidate cleared")
+        after.pop("fault_offset_candidate", None)
+
+    if static_offset_candidate > 0:
+        if after.get("static_offset_candidate") != static_offset_candidate:
+            reasons.append(f"static_offset_candidate <- {static_offset_candidate}")
+        after["static_offset_candidate"] = static_offset_candidate
+    elif "static_offset_candidate" in after:
+        reasons.append("static_offset_candidate cleared")
+        after.pop("static_offset_candidate", None)
 
     rip_control = "unknown"
     if control_rip:
@@ -193,6 +249,10 @@ def infer_capabilities(state: Dict[str, Any], infer_cfg: Dict[str, Any]) -> Capa
         reasons.append(f"write_primitive <- {write_prim}")
     after["write_primitive"] = write_prim
 
+    exp = _safe_dict(_safe_dict(state.get("session")).get("exp"))
+    local_verify_passed = _as_bool(exp.get("local_verify_passed"), default=False)
+    exp_strategy = str(exp.get("strategy", "")).strip().lower()
+
     ret2win_verified = _as_bool(after.get("ret2win_path_verified"), default=False)
     if not ret2win_verified:
         for h in _safe_list(_safe_dict(state.get("hypotheses")).get("active")):
@@ -201,6 +261,8 @@ def infer_capabilities(state: Dict[str, Any], infer_cfg: Dict[str, Any]) -> Capa
             if str(h.get("type", "")).strip().lower() == "ret2win" and _as_bool(h.get("verified"), default=False):
                 ret2win_verified = True
                 break
+    if not ret2win_verified and local_verify_passed and exp_strategy == "ret2win":
+        ret2win_verified = True
     if _as_bool(after.get("ret2win_path_verified"), default=False) != ret2win_verified:
         reasons.append(f"ret2win_path_verified <- {ret2win_verified}")
     after["ret2win_path_verified"] = ret2win_verified
@@ -210,9 +272,8 @@ def infer_capabilities(state: Dict[str, Any], infer_cfg: Dict[str, Any]) -> Capa
         reasons.append(f"system_call_observed <- {system_observed}")
     after["system_call_observed"] = system_observed
 
-    exp = _safe_dict(_safe_dict(state.get("session")).get("exp"))
     exploit_success = _as_bool(after.get("exploit_success"), default=False)
-    if _as_bool(exp.get("local_verify_passed"), default=False):
+    if local_verify_passed:
         exploit_success = True
     if _as_bool(after.get("exploit_success"), default=False) != exploit_success:
         reasons.append(f"exploit_success <- {exploit_success}")

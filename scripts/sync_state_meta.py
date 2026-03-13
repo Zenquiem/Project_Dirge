@@ -4,12 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from core.meta_sync_utils import promote_remote_verification_meta
-
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from core.meta_sync_utils import promote_remote_verification_meta
 DEFAULT_STATE = os.path.join(ROOT_DIR, "state", "state.json")
 
 

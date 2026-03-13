@@ -97,10 +97,28 @@ def _parse_cli_env(env_items: List[str]) -> Dict[str, str]:
     return out
 
 
-def _resolve_exp_path(state: Dict[str, Any], exp_arg: str) -> Tuple[str, str]:
+def _session_default_exp_rel(session_id: str) -> str:
+    sid = str(session_id or "").strip()
+    if not sid or sid == "unknown":
+        return ""
+    return os.path.join("sessions", sid, "exp", "exp.py")
+
+
+def _resolve_exp_path(state: Dict[str, Any], exp_arg: str, session_id: str = "") -> Tuple[str, str]:
     raw = exp_arg.strip() if exp_arg else ""
     if not raw:
-        raw = str(state.get("session", {}).get("exp", {}).get("path", "")).strip()
+        state_raw = str(state.get("session", {}).get("exp", {}).get("path", "")).strip()
+        sid = str(session_id or "").strip()
+        sess_rel = _session_default_exp_rel(sid)
+        if state_raw:
+            state_norm = state_raw.replace("\\", "/")
+            sess_norm = sess_rel.replace("\\", "/") if sess_rel else ""
+            if (not sess_norm) or state_norm == sess_norm or state_norm.startswith(f"sessions/{sid}/"):
+                raw = state_raw
+        if (not raw) and sess_rel:
+            raw = sess_rel
+        if (not raw):
+            raw = state_raw
     if not raw:
         return "", ""
     abs_path = raw if os.path.isabs(raw) else os.path.join(ROOT_DIR, raw)
@@ -681,7 +699,7 @@ def main() -> int:
     run_env_defaults.update(_load_state_verify_env_defaults(state))
     run_env_defaults.update(_parse_cli_env(args.env))
     sid = args.session_id.strip() or str(state.get("session", {}).get("session_id", "")).strip() or "unknown"
-    raw_exp, exp_abs = _resolve_exp_path(state, args.exp)
+    raw_exp, exp_abs = _resolve_exp_path(state, args.exp, sid)
 
     checks: Dict[str, Any] = {
         "exists": False,

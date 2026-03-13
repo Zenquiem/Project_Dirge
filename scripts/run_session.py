@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Set, Tuple
@@ -47,6 +48,22 @@ from core.decision_report_utils import (  # noqa: E402
 from core.remote_target_utils import extract_remote_target  # noqa: E402
 from core.session_plan_config import load_session_plan_config  # noqa: E402
 from core.path_utils import latest_file_by_patterns, parse_any_int  # noqa: E402
+from core.stdin_seed_utils import detect_cyclic_window, select_seed_input  # noqa: E402
+from core.gdb_evidence_utils import (  # noqa: E402
+    abi_info,
+    compute_pc_offset,
+    cyclic_bytes as _cyclic_bytes,
+    cyclic_find_offset as _cyclic_find_offset,
+    infer_static_stack_smash_offset,
+    parse_fault_address,
+    parse_pie_base,
+    parse_rip,
+    parse_signal,
+    parse_stack_top_qword,
+    parse_stack_words,
+    recover_offset_hints,
+    stack_probe_command,
+)
 from core.stage_flow_utils import (  # noqa: E402
     ensure_counter_progress as ensure_counter_progress_impl,
     ensure_terminal_stage_last as ensure_terminal_stage_last_impl,
@@ -1152,49 +1169,6 @@ def cache_patch_is_valid(stage: str, state: Dict[str, Any]) -> bool:
     return True
 
 
-def _cyclic_bytes(length: int) -> bytes:
-    n = max(1, int(length))
-    set1 = b"abcdefghijklmnopqrstuvwxyz"
-    set2 = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    set3 = b"0123456789"
-    out = bytearray()
-    for a in set1:
-        for b in set2:
-            for c in set3:
-                out.extend((a, b, c))
-                if len(out) >= n:
-                    return bytes(out[:n])
-    while len(out) < n:
-        out.extend(b"Aa0")
-    return bytes(out[:n])
-
-
-def _cyclic_find_offset(value_hex: str, max_len: int) -> int:
-    s = str(value_hex or "").strip().lower()
-    if not s:
-        return -1
-    if s.startswith("0x"):
-        s = s[2:]
-    if not re.fullmatch(r"[0-9a-f]+", s):
-        return -1
-    try:
-        v = int(s, 16)
-    except Exception:
-        return -1
-    if v <= 0:
-        return -1
-    pat = _cyclic_bytes(max(64, int(max_len) + 16))
-    b8 = int(v).to_bytes(8, byteorder="little", signed=False)
-    idx = pat.find(b8)
-    if idx >= 0:
-        return int(idx)
-    b4 = b8[:4]
-    idx = pat.find(b4)
-    if idx >= 0:
-        return int(idx)
-    return -1
-
-
 def _guess_offset_from_gdb_evidence(state: Dict[str, Any]) -> int:
     dynamic = state.get("dynamic_evidence", {}) if isinstance(state.get("dynamic_evidence", {}), dict) else {}
     evid = dynamic.get("evidence", []) if isinstance(dynamic.get("evidence", []), list) else []
@@ -2065,6 +2039,45 @@ def state_digest(state: Dict[str, Any]) -> str:
     )
 
 
+def _resolve_state_relative_path(state_path: str, raw_path: str) -> str:
+    p = str(raw_path or "").strip()
+    if not p:
+        return ""
+    if os.path.isabs(p):
+        return os.path.abspath(p)
+
+    state_dir = os.path.dirname(os.path.abspath(state_path)) if str(state_path or "").strip() else ROOT_DIR
+    candidates: List[str] = []
+
+    def _add_candidate(base: str) -> None:
+        base_abs = os.path.abspath(base)
+        cand = os.path.abspath(os.path.join(base_abs, p))
+        if cand not in candidates:
+            candidates.append(cand)
+
+    _add_candidate(ROOT_DIR)
+    _add_candidate(state_dir)
+    try:
+        state = load_json(state_path)
+    except Exception:
+        state = {}
+    challenge = state.get("challenge", {}) if isinstance(state.get("challenge", {}), dict) else {}
+    for key in ("workdir", "work_dir", "source_dir"):
+        raw_base = str(challenge.get(key, "")).strip()
+        if not raw_base:
+            continue
+        if os.path.isabs(raw_base):
+            _add_candidate(raw_base)
+        else:
+            _add_candidate(os.path.join(ROOT_DIR, raw_base))
+            _add_candidate(os.path.join(state_dir, raw_base))
+
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    return candidates[0] if candidates else ""
+
+
 def choose_missing_codex_stage_order(
     *,
     stage_order: List[str],
@@ -2084,16 +2097,56 @@ def choose_missing_codex_stage_order(
             state = {}
         challenge = state.get("challenge", {}) if isinstance(state.get("challenge", {}), dict) else {}
         binary_rel = str(challenge.get("binary_path", "")).strip()
-        binary_abs = binary_rel if os.path.isabs(binary_rel) else os.path.abspath(os.path.join(ROOT_DIR, binary_rel))
-        has_local_binary = bool(binary_rel and os.path.isfile(binary_abs))
+        binary_abs = _resolve_state_relative_path(state_path, binary_rel)
+        has_local_binary = bool(binary_rel and binary_abs and os.path.isfile(binary_abs))
         if has_local_binary and ("recon" in ordered):
             prefer_local_gdb = bool(os.environ.get("DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING", "").strip() == "1")
+            allow_local_exploit = bool(os.environ.get("DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING", "").strip() == "1")
             has_gdb_seed = any(
                 str(os.environ.get(name, "")).strip()
                 for name in ("DIRGE_LOCAL_GDB_STDIN_TEXT", "DIRGE_LOCAL_GDB_STDIN_HEX", "DIRGE_LOCAL_GDB_STDIN_FILE")
             )
-            if prefer_local_gdb and has_gdb_seed and ("gdb_evidence" in ordered) and shutil.which("gdb"):
-                return ["recon", "gdb_evidence"], "local_recon_gdb"
+            has_direct_gdb_seed = any(
+                str(os.environ.get(name, "")).strip()
+                for name in ("DIRGE_GDB_DIRECT_STDIN_TEXT", "DIRGE_GDB_DIRECT_STDIN_HEX", "DIRGE_GDB_DIRECT_STDIN_FILE")
+            )
+            force_direct_gdb = bool(os.environ.get("DIRGE_FORCE_DIRECT_GDB_ON_CODEX_MISSING", "").strip() == "1")
+            has_local_gdb = bool(shutil.which("gdb"))
+            explicit_direct_gdb_probe = bool(str(os.environ.get("DIRGE_GDB_MCP_CMD", "")).strip())
+            has_direct_gdb_probe = explicit_direct_gdb_probe
+            if (not has_direct_gdb_probe) and shutil.which("gdb-mcp"):
+                has_direct_gdb_probe = True
+            exploit_stage = ""
+            if allow_local_exploit:
+                if "exploit_l3" in ordered:
+                    exploit_stage = "exploit_l3"
+                elif any(exploit_stage_level(stage) >= 0 for stage in ordered) or (exploit_stage_level(terminal_stage) >= 0):
+                    exploit_stage = "exploit_l3"
+                elif prefer_local_gdb or explicit_direct_gdb_probe:
+                    exploit_stage = "exploit_l3"
+            if prefer_local_gdb and ("gdb_evidence" in ordered):
+                if has_direct_gdb_probe and (force_direct_gdb or (has_direct_gdb_seed and not has_gdb_seed)):
+                    base = ["recon", "gdb_evidence"]
+                    if allow_local_exploit and exploit_stage:
+                        return base + [exploit_stage], "local_recon_direct_gdb_exploit"
+                    return base, "local_recon_direct_gdb"
+                if has_gdb_seed and has_local_gdb:
+                    base = ["recon", "gdb_evidence"]
+                    if allow_local_exploit and exploit_stage:
+                        return base + [exploit_stage], "local_recon_gdb_exploit"
+                    return base, "local_recon_gdb"
+                if has_local_gdb and not explicit_direct_gdb_probe:
+                    base = ["recon", "gdb_evidence"]
+                    if allow_local_exploit and exploit_stage:
+                        return base + [exploit_stage], "local_recon_gdb_exploit"
+                    return base, "local_recon_gdb"
+                if has_direct_gdb_probe:
+                    base = ["recon", "gdb_evidence"]
+                    if allow_local_exploit and exploit_stage:
+                        return base + [exploit_stage], "local_recon_direct_gdb_exploit"
+                    return base, "local_recon_direct_gdb"
+            if allow_local_exploit and exploit_stage:
+                return ["recon", exploit_stage], "local_recon_exploit"
             return ["recon"], "local_recon_only"
 
     if restrict_to_l3:
@@ -2102,6 +2155,40 @@ def choose_missing_codex_stage_order(
         if filtered:
             return filtered, "terminal_only"
     return ordered, "keep_full_plan"
+
+
+def describe_missing_codex_plan_notes(plan: str, *, fast_mode: bool = False) -> List[str]:
+    plan_name = str(plan or "").strip()
+    notes: List[str] = []
+    if plan_name in {"local_recon_gdb", "local_recon_gdb_exploit"}:
+        notes.append("direct gdb probe: off")
+        if "exploit" in plan_name:
+            notes.append("local exploit plugin: on")
+        if fast_mode:
+            notes.append(
+                "fast profile: disable direct gdb probe to honor local gdb fallback preference when codex is unavailable"
+            )
+    elif plan_name in {"local_recon_direct_gdb", "local_recon_direct_gdb_exploit"}:
+        notes.append("direct gdb probe: on")
+        if "exploit" in plan_name:
+            notes.append("local exploit plugin: on")
+    elif plan_name == "local_recon_exploit":
+        notes.append("direct gdb probe: off")
+        notes.append("gdb evidence unavailable: exploit after recon")
+        notes.append("local exploit plugin: on")
+    return notes
+
+
+def should_defer_objective_stop_for_missing_codex_plan(
+    plan: str,
+    *,
+    enable_exploit: bool,
+    stage_order: List[str],
+) -> bool:
+    plan_name = str(plan or "").strip()
+    if (not enable_exploit) or ("exploit" not in plan_name):
+        return False
+    return any(exploit_stage_level(str(stage or "").strip()) >= 0 for stage in (stage_order or []))
 
 
 def _update_recon_state_summary(
@@ -2231,6 +2318,7 @@ def run_local_recon_fallback(
             imports = re.findall(r"\b([A-Za-z_][A-Za-z0-9_@.]*)\b", out_nm)
             imports = [x.split("@@", 1)[0].split("@", 1)[0] for x in imports]
     imports = list(dict.fromkeys([x for x in imports if x and (x[0].isalpha() or x[0] == "_")]))[:128]
+    symbol_items = _collect_local_nm_symbols(bin_abs)
 
     hdr = str(meta.get("readelf_header", "") or "")
     hdr_low = hdr.lower()
@@ -2273,6 +2361,22 @@ def run_local_recon_fallback(
     challenge["analysis_ready"] = True
     challenge.setdefault("import_meta", {})["local_recon"] = True
     state["challenge"] = challenge
+
+    static = state.setdefault("static_analysis", {})
+    entrypoints, suspects, hypotheses = _derive_local_static_hints_from_symbols(symbol_items)
+    if entrypoints:
+        static["entrypoints"] = entrypoints
+    if suspects:
+        static["suspects"] = suspects
+    if hypotheses:
+        static["hypotheses"] = hypotheses
+    static_offset_candidate = int(infer_static_stack_smash_offset(bin_abs) or 0)
+    if static_offset_candidate > 0:
+        static["stack_smash_offset_guess"] = int(static_offset_candidate)
+        caps = state.setdefault("capabilities", {})
+        if not int(caps.get("offset_to_rip", 0) or 0):
+            caps["static_offset_candidate"] = int(static_offset_candidate)
+
     state.setdefault("summary", {})["next_actions"] = [
         "local recon completed without Codex runtime",
         "switch to host Codex CLI or continue with local gdb evidence if available",
@@ -2293,6 +2397,9 @@ def run_local_recon_fallback(
         "binary_name": challenge.get("binary_name", ""),
         "protections": protections,
         "imports_sample": imports[:32],
+        "local_symbols_sample": symbol_items[:32],
+        "local_symbol_count": len(symbol_items),
+        "static_offset_candidate": int(static_offset_candidate),
         "metadata": meta,
         "source_log": log_rel,
     }
@@ -2318,6 +2425,16 @@ def run_local_recon_fallback(
     latest["recon_log"] = log_rel
     latest["recon_report"] = report_rel
     save_json(state_path, state)
+    if symbol_items:
+        try:
+            write_symbol_map_artifact(
+                state_path=state_path,
+                session_id=session_id,
+                loop_idx=loop_idx,
+                source_log_rel=log_rel,
+            )
+        except Exception:
+            pass
     return True, report_rel, ""
 
 
@@ -2378,29 +2495,89 @@ def _hex_sub(a: str, b: str) -> str:
     return hex(av - bv)
 
 
+def _collect_local_nm_symbols(binary_abs: str) -> List[Dict[str, Any]]:
+    if (not binary_abs) or (not shutil.which("nm")):
+        return []
+    rc_nm, out_nm, _ = _run_capture_quick(["nm", "-an", binary_abs], timeout_sec=3.0)
+    if rc_nm != 0 or (not out_nm):
+        return []
+    out: List[Dict[str, Any]] = []
+    seen: set[tuple[str, int]] = set()
+    for raw_line in out_nm.splitlines():
+        line = str(raw_line or "").strip()
+        m = re.match(r"^([0-9A-Fa-f]+)\s+([A-Za-z])\s+(.+)$", line)
+        if not m:
+            continue
+        addr = _parse_any_int("0x" + str(m.group(1)).lower())
+        sym_type = str(m.group(2)).strip()
+        name = str(m.group(3)).strip()
+        if addr <= 0 or (not name):
+            continue
+        key = (name, int(addr))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"name": name, "address": hex(addr), "sym_type": sym_type})
+    return out
+
+
+def _derive_local_static_hints_from_symbols(symbol_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    entrypoints: List[Dict[str, Any]] = []
+    suspects: List[Dict[str, Any]] = []
+    hypotheses: List[Dict[str, Any]] = []
+    seen_entry: set[str] = set()
+    seen_suspect: set[str] = set()
+    seen_hypo: set[str] = set()
+
+    def _push_unique(bucket: List[Dict[str, Any]], seen: set[str], item: Dict[str, Any], key: str) -> None:
+        norm = str(key or "").strip().lower()
+        if (not norm) or (norm in seen):
+            return
+        seen.add(norm)
+        bucket.append(item)
+
+    for sym in symbol_items:
+        if not isinstance(sym, dict):
+            continue
+        name = str(sym.get("name", "")).strip()
+        sym_type = str(sym.get("sym_type", "")).strip().upper()
+        addr = _parse_any_int(sym.get("address", 0))
+        if (not name) or addr <= 0:
+            continue
+        low = name.lower()
+        item = {"name": name, "addr": hex(addr), "source": "local_nm", "sym_type": sym_type}
+        if sym_type in {"T", "W"} and (low == "main" or any(tok in low for tok in ("win", "ret2win", "backdoor", "shell", "get_shell"))):
+            _push_unique(entrypoints, seen_entry, item, name)
+        if any(tok in low for tok in ("gets", "fgets", "scanf", "read", "recv", "system", "execve", "win", "ret2win", "backdoor", "shell")):
+            _push_unique(suspects, seen_suspect, item, name)
+        if any(tok in low for tok in ("win", "ret2win", "backdoor", "get_shell", "shell")):
+            hypo = {
+                "type": "ret2win",
+                "name": name,
+                "target_addr": hex(addr),
+                "statement": f"local nm symbol suggests ret2win target: {name}",
+                "source": "local_nm",
+                "confidence": "medium",
+            }
+            _push_unique(hypotheses, seen_hypo, hypo, name)
+
+    return entrypoints[:16], suspects[:32], hypotheses[:16]
+
+
 def _select_local_gdb_stdin() -> Tuple[bytes, str]:
-    stdin_file = str(os.environ.get("DIRGE_LOCAL_GDB_STDIN_FILE", "")).strip()
-    if stdin_file:
-        try:
-            with open(stdin_file, "rb") as f:
-                return f.read(), f"file:{stdin_file}"
-        except Exception as e:
-            raise RuntimeError(f"gdb_stdin_file_unreadable:{e}") from e
-
-    stdin_hex = str(os.environ.get("DIRGE_LOCAL_GDB_STDIN_HEX", "")).strip()
-    if stdin_hex:
-        cleaned = re.sub(r"[^0-9a-fA-F]", "", stdin_hex)
-        if (not cleaned) or (len(cleaned) % 2 != 0):
-            raise RuntimeError("gdb_stdin_hex_invalid")
-        try:
-            return bytes.fromhex(cleaned), "hex-env"
-        except Exception as e:
-            raise RuntimeError(f"gdb_stdin_hex_invalid:{e}") from e
-
-    if "DIRGE_LOCAL_GDB_STDIN_TEXT" in os.environ:
-        return os.environ.get("DIRGE_LOCAL_GDB_STDIN_TEXT", "").encode("utf-8"), "text-env"
-
-    return b"\n", "default-newline"
+    data, source, _kind, _size = select_seed_input(
+        file_env="DIRGE_LOCAL_GDB_STDIN_FILE",
+        hex_env="DIRGE_LOCAL_GDB_STDIN_HEX",
+        text_env="DIRGE_LOCAL_GDB_STDIN_TEXT",
+        auto_len_env="DIRGE_LOCAL_GDB_STDIN_AUTO_LEN",
+        cyclic_factory=_cyclic_bytes,
+        root_dir=ROOT_DIR,
+        error_prefix="gdb_stdin",
+        auto_len_default=1,
+        auto_len_min=1,
+        auto_len_max=8192,
+    )
+    return data, source
 
 
 def run_local_gdb_fallback(
@@ -2422,8 +2599,24 @@ def run_local_gdb_fallback(
     if not shutil.which("gdb"):
         return False, "", "gdb_unavailable"
 
+    challenge_dir_rel = str(challenge.get("challenge_dir", "")).strip()
+    challenge_dir_abs = ""
+    if challenge_dir_rel:
+        challenge_dir_abs = (
+            challenge_dir_rel if os.path.isabs(challenge_dir_rel) else os.path.abspath(os.path.join(ROOT_DIR, challenge_dir_rel))
+        )
+
     try:
-        stdin_bytes, stdin_source = _select_local_gdb_stdin()
+        stdin_bytes, stdin_source, stdin_kind, _stdin_size = select_seed_input(
+            file_env="DIRGE_LOCAL_GDB_STDIN_FILE",
+            hex_env="DIRGE_LOCAL_GDB_STDIN_HEX",
+            text_env="DIRGE_LOCAL_GDB_STDIN_TEXT",
+            auto_len_env="DIRGE_LOCAL_GDB_STDIN_AUTO_LEN",
+            cyclic_factory=_cyclic_bytes,
+            root_dir=ROOT_DIR,
+            search_dirs=[challenge_dir_abs, os.path.dirname(bin_abs), os.getcwd()],
+            error_prefix="gdb_stdin",
+        )
     except RuntimeError as e:
         return False, "", str(e)
 
@@ -2433,6 +2626,8 @@ def run_local_gdb_fallback(
     with open(stdin_abs, "wb") as f:
         f.write(stdin_bytes)
 
+    abi = abi_info(bin_abs)
+    stack_cmd, stack_word_size = stack_probe_command(abi)
     gdb_cmd = ["gdb", "-q", "-nx", "-batch"]
     for ex in (
         "set pagination off",
@@ -2441,6 +2636,7 @@ def run_local_gdb_fallback(
         "info registers rip eip pc",
         "bt 8",
         "info proc mappings",
+        stack_cmd,
     ):
         gdb_cmd.extend(["-ex", ex])
     gdb_cmd.extend(["--args", bin_abs])
@@ -2451,14 +2647,42 @@ def run_local_gdb_fallback(
     if combined:
         append_file(log_abs, combined[:16000] + ("\n...[truncated]\n" if len(combined) > 16000 else "\n"))
 
-    signal = _parse_gdb_signal(combined)
-    rip = _parse_gdb_register_hex(combined, "rip", "eip", "pc")
-    pie_base = _parse_gdb_binary_mapping_base(combined, bin_abs)
-    pc_offset = _hex_sub(rip, pie_base) if rip and pie_base else ""
+    mappings_text = combined
+    if "Mapped address spaces:" in combined:
+        mappings_text = combined.split("Mapped address spaces:", 1)[1]
+        mappings_text = "Mapped address spaces:" + mappings_text
+    signal = parse_signal(combined)
+    rip = parse_rip(combined)
+    fault_addr = parse_fault_address(combined)
+    pie_base = parse_pie_base(mappings_text, bin_abs)
+    pc_offset = compute_pc_offset(rip, pie_base) if rip and pie_base else ""
+    stack_words = parse_stack_words(combined, max_lines=16)
+    stack_top = parse_stack_top_qword(combined)
     if not signal:
         return False, "", "gdb_no_crash_signal"
     if not pie_base:
         return False, "", "gdb_missing_binary_mapping"
+
+    cyclic_info = detect_cyclic_window(stdin_bytes, cyclic_factory=_cyclic_bytes)
+    offset_to_rip = 0
+    offset_source = ""
+    fault_offset_candidate = 0
+    static_offset_candidate = 0
+    control_rip = False
+    if bool(cyclic_info.get("cyclic_compatible")):
+        offset_hints = recover_offset_hints(
+            value_hex=rip,
+            stack_words=stack_words,
+            cyclic_len=len(stdin_bytes),
+            stack_word_size=int(stack_word_size),
+            fault_addr=fault_addr,
+            static_guess=int(infer_static_stack_smash_offset(bin_abs) or 0),
+        )
+        offset_to_rip = int(offset_hints.get("offset_to_rip", 0) or 0)
+        offset_source = str(offset_hints.get("offset_source", "") or "")
+        fault_offset_candidate = int(offset_hints.get("fault_offset_candidate", 0) or 0)
+        static_offset_candidate = int(offset_hints.get("static_offset_candidate", 0) or 0)
+        control_rip = bool(offset_hints.get("control_rip", False))
 
     raw_rel = f"artifacts/reports/gdb_raw_{session_id}_{loop_idx:02d}_local.txt"
     raw_abs = os.path.join(ROOT_DIR, raw_rel)
@@ -2471,7 +2695,7 @@ def run_local_gdb_fallback(
     evidence = dynamic.setdefault("evidence", [])
     input_id = f"inp_{session_id}_{loop_idx:02d}_local_gdb"
     evidence_id = f"ev_{session_id}_{loop_idx:02d}_local_gdb"
-    inputs.append({
+    input_doc = {
         "input_id": input_id,
         "path": stdin_rel,
         "origin": "local_gdb_fallback",
@@ -2479,17 +2703,35 @@ def run_local_gdb_fallback(
         "stage": "gdb_evidence",
         "size": len(stdin_bytes),
         "stdin_source": stdin_source,
+        "kind": stdin_kind,
         "created_utc": utc_now(),
-    })
+    }
+    input_doc.update(cyclic_info)
+    inputs.append(input_doc)
+    gdb_doc = {
+        "signal": signal,
+        "rip": rip,
+        "pc_offset": pc_offset,
+        "offset_source": offset_source,
+        "stack_top_qword": stack_top,
+        "stack": "\n".join([line for line in combined.splitlines() if re.match(r"^\s*0x[0-9a-fA-F]+:\s+0x[0-9a-fA-F]+", line)]),
+        "stdin_kind": stdin_kind,
+        "stdin_source": stdin_source,
+        "stack_word_size": int(stack_word_size),
+    }
+    if fault_addr:
+        gdb_doc["fault_addr"] = fault_addr
+    if fault_offset_candidate > 0:
+        gdb_doc["fault_offset_candidate"] = int(fault_offset_candidate)
+    if static_offset_candidate > 0:
+        gdb_doc["static_offset_candidate"] = int(static_offset_candidate)
+    if control_rip:
+        gdb_doc["control_rip"] = True
+        gdb_doc["offset_to_rip"] = int(offset_to_rip)
     evidence.append({
         "evidence_id": evidence_id,
         "input_id": input_id,
-        "gdb": {
-            "signal": signal,
-            "rip": rip,
-            "pc_offset": pc_offset,
-            "offset_source": "local_gdb_fallback",
-        },
+        "gdb": gdb_doc,
         "mappings": {"pie_base": pie_base},
         "paths": {"gdb_raw": raw_rel, "stdin": stdin_rel},
         "created_utc": utc_now(),
@@ -2498,8 +2740,15 @@ def run_local_gdb_fallback(
     latest_bases = state.setdefault("latest_bases", {})
     latest_bases["pie_base"] = pie_base
     caps = state.setdefault("capabilities", {})
+    if static_offset_candidate > 0:
+        latest_bases["static_offset_candidate"] = int(static_offset_candidate)
     caps["has_crash"] = True
     caps["crash_stable"] = True
+    if control_rip:
+        caps["control_rip"] = True
+        caps["rip_control"] = "yes"
+        caps["offset_to_rip"] = int(offset_to_rip)
+        latest_bases["offset_to_rip"] = int(offset_to_rip)
 
     summary_rel = f"artifacts/reports/gdb_summary_{session_id}_{loop_idx:02d}_local.json"
     summary_abs = os.path.join(ROOT_DIR, summary_rel)
@@ -2512,10 +2761,18 @@ def run_local_gdb_fallback(
             "binary_path": bin_rel,
             "input_path": stdin_rel,
             "stdin_source": stdin_source,
+            "stdin_kind": stdin_kind,
             "signal": signal,
             "rip": rip,
+            "fault_addr": fault_addr,
+            "fault_offset_candidate": int(fault_offset_candidate) if fault_offset_candidate > 0 else 0,
+            "static_offset_candidate": int(static_offset_candidate) if static_offset_candidate > 0 else 0,
             "pie_base": pie_base,
             "pc_offset": pc_offset,
+            "control_rip": control_rip,
+            "offset_to_rip": int(offset_to_rip) if control_rip else 0,
+            "offset_source": offset_source,
+            "stack_word_size": int(stack_word_size),
             "gdb_rc": rc_gdb,
             "source_log": log_rel,
         }, f, ensure_ascii=False, indent=2)
@@ -2544,6 +2801,13 @@ def run_local_gdb_fallback(
             "evidence_id": evidence_id,
             "cluster_report": cluster_rel,
             "capabilities_report": cap_report_rel,
+            "stdin_kind": stdin_kind,
+            "control_rip": bool(control_rip),
+            "offset_to_rip": int(offset_to_rip) if control_rip else 0,
+            "offset_source": offset_source,
+            "fault_offset_candidate": int(fault_offset_candidate) if fault_offset_candidate > 0 else 0,
+            "static_offset_candidate": int(static_offset_candidate) if static_offset_candidate > 0 else 0,
+            "stack_word_size": int(stack_word_size),
         },
     )
     latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
@@ -4022,6 +4286,7 @@ def sync_exp_verify_artifacts(
     session_id: str,
     loop_idx: int,
     exp_verify_report: str,
+    base_state: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     return _sync_exp_verify_artifacts_impl(
         state_path=state_path,
@@ -4031,6 +4296,7 @@ def sync_exp_verify_artifacts(
         load_json_fn=load_json,
         save_json_fn=save_json,
         ensure_exploit_artifact_links_fn=ensure_exploit_artifact_links,
+        base_state=base_state,
     )
 
 
@@ -4226,6 +4492,53 @@ def run_exp_plugin(
         return False, str(e)
 
 
+def _derive_verify_success_markers(state: Dict[str, Any], limit: int = 8) -> List[str]:
+    markers: List[str] = []
+    seen = set()
+
+    def _add(raw: Any) -> None:
+        s = str(raw or "").strip()
+        if (not s) or (s in seen) or len(s) > 96:
+            return
+        seen.add(s)
+        markers.append(s)
+
+    for suspect in state.get("static_analysis", {}).get("suspects", []) if isinstance(state.get("static_analysis", {}).get("suspects", []), list) else []:
+        if not isinstance(suspect, dict):
+            continue
+        name = str(suspect.get("name", "")).strip().lower()
+        if any(tok in name for tok in ("ret2win", "win", "shell", "backdoor", "get_shell")):
+            for tok in ("you pwned me", "pwned", "win", "shell"):
+                _add(tok)
+
+    bin_rel = str(state.get("challenge", {}).get("binary_path", "")).strip()
+    bin_abs = os.path.abspath(os.path.join(ROOT_DIR, bin_rel)) if bin_rel else ""
+    if bin_abs and os.path.isfile(bin_abs):
+        try:
+            with open(bin_abs, "rb") as f:
+                blob = f.read()
+        except Exception:
+            blob = b""
+        if blob:
+            for m in re.finditer(rb"[\x20-\x7e]{4,96}", blob):
+                s = m.group(0).decode("latin-1", errors="ignore").strip()
+                low = s.lower()
+                if len(s) < 4:
+                    continue
+                candidates = [s]
+                candidates.extend(re.findall(r"[A-Za-z0-9_{}-]{4,64}", s))
+                for cand in candidates:
+                    low_cand = cand.lower()
+                    if any(tok in low_cand for tok in ("flag{", "ctf{", "cyberpeace{", "pwn", "win", "shell", "success", "owned")) or low_cand.endswith("_ok"):
+                        _add(cand)
+                    if len(markers) >= max(1, int(limit or 1)):
+                        break
+                if len(markers) >= max(1, int(limit or 1)):
+                    break
+
+    return markers[: max(1, int(limit or 1))]
+
+
 def run_exp_verify(
     *,
     state_path: str,
@@ -4264,94 +4577,126 @@ def run_exp_verify(
     if read_len_guess > 0 and "PWN_READ_LEN" not in run_env_defaults:
         run_env_defaults["PWN_READ_LEN"] = str(read_len_guess)
 
-    for i in range(1, repeat + 1):
-        attempt_report_rel = f"artifacts/reports/exp_verify_{session_id}_{loop_idx:02d}_{i:02d}.json"
-        cmd = [
-            sys.executable,
-            os.path.join(ROOT_DIR, "scripts", "verify_local_exp.py"),
-            "--state",
-            state_path,
-            "--session-id",
-            session_id,
-            "--loop",
-            str(loop_idx),
-            "--report",
-            attempt_report_rel,
-        ]
-        if bool(verify_cfg.get("run", False)):
-            cmd.append("--run")
-            timeout_sec = float(verify_cfg.get("run_timeout_sec", 4.0) or 4.0)
-            cmd.extend(["--run-timeout-sec", str(timeout_sec)])
-            cmd.extend(["--verify-mode", verify_mode])
-            if verify_mode == "auto" and quick_then_full:
-                cmd.append("--quick-then-full")
-            if bool(verify_cfg.get("run_strict", False)):
-                cmd.append("--run-strict")
-            if bool(verify_cfg.get("check_success_markers", True)):
-                success_markers = verify_cfg.get(
-                    "success_markers",
-                    ["__PWN_VERIFY_OK__", "flag{", "you pwned me", "remember you forever"],
-                )
-                if isinstance(success_markers, list):
-                    marks = [str(x).strip() for x in success_markers if str(x).strip()]
-                else:
-                    marks = [x.strip() for x in str(success_markers or "").split(",") if x.strip()]
-                if marks:
-                    cmd.extend(["--success-markers", ",".join(marks)])
-                success_regexes = verify_cfg.get(
-                    "success_regexes",
-                    [
-                        r"flag\{[^\n}]{1,200}\}",
-                        r"ctf\{[^\n}]{1,200}\}",
-                        r"cyberpeace\{[^\n}]{1,200}\}",
-                    ],
-                )
-                if isinstance(success_regexes, list):
-                    regexes = [str(x).strip() for x in success_regexes if str(x).strip()]
-                else:
-                    regexes = [x.strip() for x in str(success_regexes or "").split(",") if x.strip()]
-                if regexes:
-                    cmd.extend(["--success-regexes", ",".join(regexes)])
-            else:
-                cmd.append("--no-success-marker-check")
-            if run_env_defaults:
-                for k in sorted(run_env_defaults.keys()):
-                    cmd.extend(["--env", f"{k}={run_env_defaults[k]}"])
-        python_bin = str(verify_cfg.get("python_bin", "")).strip()
-        if python_bin:
-            cmd.extend(["--python", python_bin])
+    verify_state_path = state_path
+    verify_state_temp = ""
+    state_sid = str(state_now.get("session", {}).get("session_id", "")).strip()
+    if state_now and state_sid == session_id:
+        try:
+            verify_tmp_dir = os.path.join(ROOT_DIR, "sessions", session_id, "verify_tmp")
+            os.makedirs(verify_tmp_dir, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=verify_tmp_dir,
+                prefix=f"verify_state_{loop_idx:02d}_",
+                suffix=".json",
+                delete=False,
+            ) as tf:
+                json.dump(state_now, tf, ensure_ascii=False, indent=2)
+                verify_state_temp = tf.name
+                verify_state_path = verify_state_temp
+        except Exception:
+            verify_state_temp = ""
+            verify_state_path = state_path
 
-        p = subprocess.run(cmd, cwd=ROOT_DIR, capture_output=True, text=True, check=False)
-        append_file(log_path, f"\n$ {' '.join(cmd)}\n")
-        if p.stdout:
-            append_file(log_path, p.stdout)
-        if p.stderr:
-            append_file(log_path, p.stderr)
+    try:
+        for i in range(1, repeat + 1):
+            attempt_report_rel = f"artifacts/reports/exp_verify_{session_id}_{loop_idx:02d}_{i:02d}.json"
+            cmd = [
+                sys.executable,
+                os.path.join(ROOT_DIR, "scripts", "verify_local_exp.py"),
+                "--state",
+                verify_state_path,
+                "--session-id",
+                session_id,
+                "--loop",
+                str(loop_idx),
+                "--report",
+                attempt_report_rel,
+            ]
+            if bool(verify_cfg.get("run", False)):
+                cmd.append("--run")
+                timeout_sec = float(verify_cfg.get("run_timeout_sec", 4.0) or 4.0)
+                cmd.extend(["--run-timeout-sec", str(timeout_sec)])
+                cmd.extend(["--verify-mode", verify_mode])
+                if verify_mode == "auto" and quick_then_full:
+                    cmd.append("--quick-then-full")
+                if bool(verify_cfg.get("run_strict", False)):
+                    cmd.append("--run-strict")
+                if bool(verify_cfg.get("check_success_markers", True)):
+                    success_markers = verify_cfg.get(
+                        "success_markers",
+                        ["__PWN_VERIFY_OK__", "flag{", "you pwned me", "remember you forever"],
+                    )
+                    if isinstance(success_markers, list):
+                        marks = [str(x).strip() for x in success_markers if str(x).strip()]
+                    else:
+                        marks = [x.strip() for x in str(success_markers or "").split(",") if x.strip()]
+                    for auto_mark in _derive_verify_success_markers(state_now):
+                        if auto_mark not in marks:
+                            marks.append(auto_mark)
+                    if marks:
+                        cmd.extend(["--success-markers", ",".join(marks)])
+                    success_regexes = verify_cfg.get(
+                        "success_regexes",
+                        [
+                            r"flag\{[^\n}]{1,200}\}",
+                            r"ctf\{[^\n}]{1,200}\}",
+                            r"cyberpeace\{[^\n}]{1,200}\}",
+                        ],
+                    )
+                    if isinstance(success_regexes, list):
+                        regexes = [str(x).strip() for x in success_regexes if str(x).strip()]
+                    else:
+                        regexes = [x.strip() for x in str(success_regexes or "").split(",") if x.strip()]
+                    if regexes:
+                        cmd.extend(["--success-regexes", ",".join(regexes)])
+                else:
+                    cmd.append("--no-success-marker-check")
+                if run_env_defaults:
+                    for k in sorted(run_env_defaults.keys()):
+                        cmd.extend(["--env", f"{k}={run_env_defaults[k]}"])
+            python_bin = str(verify_cfg.get("python_bin", "")).strip()
+            if python_bin:
+                cmd.extend(["--python", python_bin])
 
-        ok = int(p.returncode) == 0
-        if ok:
-            pass_count += 1
-        report_rel = ""
-        err = ""
-        if p.stdout.strip():
+            p = subprocess.run(cmd, cwd=ROOT_DIR, capture_output=True, text=True, check=False)
+            append_file(log_path, f"\n$ {' '.join(cmd)}\n")
+            if p.stdout:
+                append_file(log_path, p.stdout)
+            if p.stderr:
+                append_file(log_path, p.stderr)
+
+            ok = int(p.returncode) == 0
+            if ok:
+                pass_count += 1
+            report_rel = ""
+            err = ""
+            if p.stdout.strip():
+                try:
+                    obj = json.loads(p.stdout)
+                    if isinstance(obj, dict):
+                        report_rel = str(obj.get("report", "")).strip()
+                        err = str(obj.get("error", "")).strip()
+                except Exception:
+                    pass
+            if (not err) and p.stderr.strip():
+                err = p.stderr.strip()[-200:]
+            attempts.append(
+                {
+                    "attempt": i,
+                    "ok": ok,
+                    "rc": int(p.returncode),
+                    "report": report_rel or attempt_report_rel,
+                    "error": err,
+                }
+            )
+    finally:
+        if verify_state_temp:
             try:
-                obj = json.loads(p.stdout)
-                if isinstance(obj, dict):
-                    report_rel = str(obj.get("report", "")).strip()
-                    err = str(obj.get("error", "")).strip()
-            except Exception:
+                os.remove(verify_state_temp)
+            except OSError:
                 pass
-        if (not err) and p.stderr.strip():
-            err = p.stderr.strip()[-200:]
-        attempts.append(
-            {
-                "attempt": i,
-                "ok": ok,
-                "rc": int(p.returncode),
-                "report": report_rel or attempt_report_rel,
-                "error": err,
-            }
-        )
 
     summary_ok = pass_count >= min_passes
     summary_rel = f"artifacts/reports/exp_verify_{session_id}_{loop_idx:02d}.json"
@@ -5028,7 +5373,7 @@ def maybe_prepare_remote_prompt(
     stage_results: List[Dict[str, Any]],
     notes: List[str],
 ) -> str:
-    if not bool(remote_prompt_cfg.get("enabled", True)):
+    if not bool(remote_prompt_cfg.get("enabled", False)):
         return ""
     if not enable_exploit:
         return ""
@@ -6473,6 +6818,7 @@ def main() -> int:
                 notes.append(f"blind mode strategy bootstrap: {blind_mode_default_strategy_hint}")
 
     quick_strategy_applied = False
+    objective_stop_deferred_for_pending_exploit = False
     quick_strategy_report_rel = ""
     if enable_exploit and terminal_stage and (not session_blind_mode):
         quick_strategy_applied, quick_strategy_report_rel = apply_direct_system_binsh_shortcut(args.state, sid)
@@ -6947,6 +7293,7 @@ def main() -> int:
                     prefer_local_recon=True,
                     restrict_to_l3=restrict_to_l3,
                 )
+                objective_stop_deferred_for_pending_exploit = False
                 if missing_codex_plan == "local_recon_only":
                     notes.append("codex missing: prefer portable local recon fallback instead of terminal-only exploit")
                     enable_exploit = False
@@ -6958,7 +7305,52 @@ def main() -> int:
                     loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
                 elif missing_codex_plan == "local_recon_gdb":
                     notes.append("codex missing: prefer portable local recon + local gdb evidence fallback")
+                    notes.extend(describe_missing_codex_plan_notes(missing_codex_plan, fast_mode=fast_mode))
                     enable_exploit = False
+                    force_terminal_stage = False
+                    terminal_stage = ""
+                    exploit_rewrite_enabled = False
+                    exploit_rewrite_until_success = False
+                    exploit_rewrite_extra_loops = 0
+                    loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
+                elif missing_codex_plan == "local_recon_gdb_exploit":
+                    notes.append("codex missing: prefer portable local recon + local gdb evidence + local exploit plugin")
+                    notes.extend(describe_missing_codex_plan_notes(missing_codex_plan, fast_mode=fast_mode))
+                    enable_exploit = True
+                    objective_stop_deferred_for_pending_exploit = should_defer_objective_stop_for_missing_codex_plan(
+                        missing_codex_plan,
+                        enable_exploit=enable_exploit,
+                        stage_order=stage_order,
+                    )
+                    if objective_stop_deferred_for_pending_exploit:
+                        notes.append("objective stop: defer until local no-codex exploit stage gets a run")
+                    force_terminal_stage = False
+                    terminal_stage = ""
+                    exploit_rewrite_enabled = False
+                    exploit_rewrite_until_success = False
+                    exploit_rewrite_extra_loops = 0
+                    loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
+                elif missing_codex_plan == "local_recon_direct_gdb":
+                    notes.append("codex missing: prefer portable local recon + direct gdb probe fallback")
+                    notes.extend(describe_missing_codex_plan_notes(missing_codex_plan, fast_mode=fast_mode))
+                    enable_exploit = False
+                    force_terminal_stage = False
+                    terminal_stage = ""
+                    exploit_rewrite_enabled = False
+                    exploit_rewrite_until_success = False
+                    exploit_rewrite_extra_loops = 0
+                    loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
+                elif missing_codex_plan == "local_recon_direct_gdb_exploit":
+                    notes.append("codex missing: prefer portable local recon + direct gdb probe + local exploit plugin")
+                    notes.extend(describe_missing_codex_plan_notes(missing_codex_plan, fast_mode=fast_mode))
+                    enable_exploit = True
+                    objective_stop_deferred_for_pending_exploit = should_defer_objective_stop_for_missing_codex_plan(
+                        missing_codex_plan,
+                        enable_exploit=enable_exploit,
+                        stage_order=stage_order,
+                    )
+                    if objective_stop_deferred_for_pending_exploit:
+                        notes.append("objective stop: defer until local no-codex exploit stage gets a run")
                     force_terminal_stage = False
                     terminal_stage = ""
                     exploit_rewrite_enabled = False
@@ -7052,14 +7444,23 @@ def main() -> int:
                     notes.append(loop_note)
 
             if objective_enabled and objective_stop_on_achieved and pre_obj.target_achieved:
-                if force_terminal_stage:
+                if objective_stop_deferred_for_pending_exploit:
+                    notes.append("目标已满足，但仍需执行一次本地 no-codex exploit stage")
+                elif force_terminal_stage:
                     notes.append(f"目标已满足，但按策略强制推进至 {terminal_stage}")
                 else:
                     notes.append("目标已满足，停止自动推进")
                     break
 
             loop_base_order = stage_order
-            if objective_enabled and objective_stop_on_achieved and pre_obj.target_achieved and force_terminal_stage and terminal_stage:
+            if (
+                objective_enabled
+                and objective_stop_on_achieved
+                and (not objective_stop_deferred_for_pending_exploit)
+                and pre_obj.target_achieved
+                and force_terminal_stage
+                and terminal_stage
+            ):
                 loop_base_order = [terminal_stage]
             if objective_enabled and objective_prioritize_missing and pre_obj.missing_stages:
                 pri = [x for x in pre_obj.missing_stages if x in stage_order]
@@ -7654,20 +8055,66 @@ def main() -> int:
                                 err = recon_err or f"codex missing, skipped stage {stage}"
                                 append_file(log_abs, err + "\n")
                         elif stage == "gdb_evidence":
-                            gdb_ok, gdb_report_rel, gdb_err = run_local_gdb_fallback(
-                                state_path=args.state,
-                                session_id=sid,
-                                loop_idx=loop_idx,
-                                log_abs=log_abs,
-                                log_rel=log_rel,
+                            prefer_local_gdb = bool(os.environ.get("DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING", "").strip() == "1")
+                            has_gdb_seed = any(
+                                str(os.environ.get(name, "")).strip()
+                                for name in ("DIRGE_LOCAL_GDB_STDIN_TEXT", "DIRGE_LOCAL_GDB_STDIN_HEX", "DIRGE_LOCAL_GDB_STDIN_FILE")
                             )
-                            ok = gdb_ok
-                            if ok:
-                                append_file(log_abs, f"[run_session] local gdb summary -> {gdb_report_rel}\n")
+                            has_direct_gdb_seed = any(
+                                str(os.environ.get(name, "")).strip()
+                                for name in ("DIRGE_GDB_DIRECT_STDIN_TEXT", "DIRGE_GDB_DIRECT_STDIN_HEX", "DIRGE_GDB_DIRECT_STDIN_FILE")
+                            )
+                            force_direct_gdb = bool(os.environ.get("DIRGE_FORCE_DIRECT_GDB_ON_CODEX_MISSING", "").strip() == "1")
+                            has_local_gdb = bool(shutil.which("gdb"))
+                            explicit_direct_probe = bool(str(os.environ.get("DIRGE_GDB_MCP_CMD", "")).strip())
+                            direct_probe_available = explicit_direct_probe
+                            if (not direct_probe_available) and shutil.which("gdb-mcp"):
+                                direct_probe_available = True
+                            prefer_local_gdb_fallback = bool(
+                                prefer_local_gdb
+                                and has_local_gdb
+                                and not (force_direct_gdb or (has_direct_gdb_seed and not has_gdb_seed))
+                                and (has_gdb_seed or not explicit_direct_probe)
+                            )
+                            direct_probe_ok = False
+                            gdb_report_rel = ""
+                            if direct_probe_available and not prefer_local_gdb_fallback:
+                                direct_cmd = [
+                                    sys.executable,
+                                    os.path.join(ROOT_DIR, "scripts", "gdb_direct_probe.py"),
+                                    "--state",
+                                    args.state,
+                                    "--session-id",
+                                    sid,
+                                    "--loop",
+                                    str(loop_idx),
+                                    "--timeout-sec",
+                                    str(min(20, int(timeout_cfg.get(stage, default_stage_timeout) or default_stage_timeout))),
+                                ]
+                                rc_direct = run_script(direct_cmd, log_abs)
+                                if rc_direct == 0:
+                                    direct_probe_ok = True
+                                    append_file(log_abs, "[run_session] direct gdb probe completed (codex missing fallback)\n")
+                                else:
+                                    append_file(log_abs, f"[run_session] direct gdb probe unavailable rc={rc_direct}; fallback to local gdb\n")
+                            if direct_probe_ok:
+                                ok = True
+                                gdb_report_rel = str(load_json(args.state).get("gdb", {}).get("report", "")).strip()
                             else:
-                                rc = 127
-                                err = gdb_err or f"codex missing, skipped stage {stage}"
-                                append_file(log_abs, err + "\n")
+                                gdb_ok, gdb_report_rel, gdb_err = run_local_gdb_fallback(
+                                    state_path=args.state,
+                                    session_id=sid,
+                                    loop_idx=loop_idx,
+                                    log_abs=log_abs,
+                                    log_rel=log_rel,
+                                )
+                                ok = gdb_ok
+                                if ok:
+                                    append_file(log_abs, f"[run_session] local gdb summary -> {gdb_report_rel}\n")
+                                else:
+                                    rc = 127
+                                    err = gdb_err or f"codex missing, skipped stage {stage}"
+                                    append_file(log_abs, err + "\n")
                         else:
                             ok = False
                             rc = 127
@@ -7739,6 +8186,7 @@ def main() -> int:
                                 session_id=sid,
                                 loop_idx=loop_idx,
                                 exp_verify_report=exp_verify_report,
+                                base_state=after,
                             )
                             local_verified = bool(after.get("session", {}).get("exp", {}).get("local_verify_passed", False))
                             if local_verified:
