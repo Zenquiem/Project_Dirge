@@ -36,6 +36,7 @@ class ReplayBenchmarksTests(unittest.TestCase):
                 "start_no_codex": False,
                 "start_session_args": ["--no-exp", "--prompt", "host-like run"],
                 "run_session_args": ["--fast", "--fresh-loops"],
+                "path_block_commands": ["codex", "gdb", "codex"],
                 "env": {
                     "CODEX_BIN": "/usr/local/bin/codex",
                     "CODEX_DEFAULT_MODEL": "gpt-5.4",
@@ -70,6 +71,7 @@ class ReplayBenchmarksTests(unittest.TestCase):
         self.assertEqual(plan["cmd_run"][-3:], ["--allow-codex-missing", "--fast", "--fresh-loops"])
         self.assertEqual(plan["env"]["CODEX_BIN"], "/usr/local/bin/codex")
         self.assertEqual(plan["env"]["EMPTY_OK"], "")
+        self.assertEqual(plan["path_block_commands"], ["codex", "gdb"])
         self.assertEqual(plan["expect"]["required_success_stages"], ["recon", "ida_slice"])
         self.assertEqual(plan["expect"]["stage_sequence"], ["recon", "ida_slice"])
         self.assertEqual(plan["expect"]["forbid_stage_cache_hits"], ["recon"])
@@ -156,6 +158,35 @@ class ReplayBenchmarksTests(unittest.TestCase):
                 session_id="bench_bad_notes_contains_20260310T000000Z",
                 allow_codex_missing_default=False,
             )
+
+        with self.assertRaises(ValueError):
+            rb.build_case_commands(
+                {
+                    "challenge_dir": "challenge/demo",
+                    "path_block_commands": "gdb",
+                },
+                case_id="bad_path_block_commands",
+                session_id="bench_bad_path_block_commands_20260310T000000Z",
+                allow_codex_missing_default=False,
+            )
+
+    def test_build_blocked_path_dir_removes_selected_commands_from_path_view(self):
+        with tempfile.TemporaryDirectory() as td:
+            bin_dir = os.path.join(td, "bin")
+            os.makedirs(bin_dir, exist_ok=True)
+            for name in ["gdb", "codex", "nm"]:
+                path = os.path.join(bin_dir, name)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("#!/bin/sh\nexit 0\n")
+                os.chmod(path, 0o755)
+
+            ctx = rb.build_blocked_path_dir(["gdb", "codex"], env={"PATH": bin_dir})
+            self.assertIsNotNone(ctx)
+            try:
+                entries = sorted(os.listdir(ctx.name))
+                self.assertEqual(entries, ["nm"])
+            finally:
+                ctx.cleanup()
 
     def test_evaluate_case_expectations_checks_run_output_metrics_and_state(self):
         with tempfile.TemporaryDirectory() as td:

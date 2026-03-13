@@ -327,3 +327,48 @@ So the current tree is not merely "fixed for one degraded path"; the portable re
 - The main remaining weakness is still determinism, not outright success:
   - current ret2win success can still depend on bounded local verify/offset bruteforce when `offset_to_rip` is not promoted cleanly enough
 - Next high-value work should focus on promoting stronger shared offset/control facts into exploit planning, rather than doing more generic runtime/plumbing cleanup.
+
+## 2026-03-13 13:05 CST — Baseline-enforced the true stripped-tool no-gdb/no-codex ret2win route
+
+### What changed
+
+- Added replay-side `path_block_commands` support to `scripts/replay_benchmarks.py`.
+  - For a given case, replay now builds a temporary PATH view from the current host PATH while omitting selected commands.
+  - This keeps the rest of the host tool surface intact instead of relying on machine-private symlink farms or one-off shell surgery.
+- Documented the new case contract in `benchmarks/README.md`.
+- Added unit coverage in `tests/test_replay_benchmarks.py` for:
+  - case parsing/contract hashing of `path_block_commands`
+  - temporary PATH view construction that actually removes blocked commands
+- Added a new benchmark case: `benchmarks/cases/demo_nogdb_nocodex_ret2win_exploit.json`
+  - blocks `gdb`, `gdb-mcp`, and `codex` from PATH
+  - requires binutils-style local recon commands only
+  - asserts the portable degraded path stays `recon -> exploit_l3`
+  - asserts `session.exp.strategy=ret2win`, `local_verify_passed=true`, and `capabilities.exploit_success=true`
+
+### Verification
+
+- `python3 -m pytest tests/test_replay_benchmarks.py -q` → `15 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit` → passes
+  - stage sequence: `['recon', 'exploit_l3']`
+  - `path_block_commands = ['gdb', 'gdb-mcp', 'codex']`
+  - `recon.mode = 'local_recon_fallback'`
+  - `session.exp.strategy = 'ret2win'`
+  - `session.exp.local_verify_passed = true`
+  - `capabilities.static_offset_candidate = 72`
+  - `capabilities.ret2win_path_verified = true`
+  - `capabilities.exploit_success = true`
+
+### Why it mattered
+
+Previously the stripped-tool route was only spot-checked manually. That left a portability gap: the project could be green on the richer local/direct-gdb matrix while the real `no-gdb/no-codex` degraded route silently drifted.
+
+This change makes that route part of the benchmark contract without hard-binding Dirge to OpenClaw-specific behavior:
+- the runtime core stays the same (`recon` facts feeding `exploit_l3` verify)
+- OpenClaw remains a valid execution environment
+- host-side Codex CLI compatibility is preserved because the case explicitly models *absence* of Codex/GDB rather than special-casing OpenClaw
+
+### Current follow-up
+
+- Now that the stripped-tool route is benchmarked, the next valuable seam is still exploit determinism rather than more benchmark plumbing:
+  - reduce dependence on bounded local verify/offset bruteforce for recon-only ret2win success
+  - promote stronger shared offset/control facts from recon/gdb evidence into exploit planning when evidence is good enough

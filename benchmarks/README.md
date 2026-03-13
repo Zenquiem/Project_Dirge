@@ -18,6 +18,7 @@ Case 字段（常用）：
 - `env`：执行 `start_session.sh` / `run_session.py` 时注入的环境变量对象（例如 `CODEX_BIN`、`CODEX_DEFAULT_MODEL`）
   - 对 no-Codex 本地 gdb benchmark，可用 `DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING=1` 搭配 `DIRGE_LOCAL_GDB_STDIN_TEXT` / `DIRGE_LOCAL_GDB_STDIN_HEX` / `DIRGE_LOCAL_GDB_STDIN_FILE` 显式描述触发崩溃的输入
   - 对 no-Codex direct-gdb benchmark，可用 `DIRGE_GDB_DIRECT_STDIN_TEXT` / `DIRGE_GDB_DIRECT_STDIN_HEX` / `DIRGE_GDB_DIRECT_STDIN_FILE`；若用 `scripts/fake_gdb_mcp.py` 固定 fault-only seam，也可通过 `DIRGE_FAKE_GDB_{RUN_TEXT,BT_TEXT,BOOT_REGS_TEXT,CRASH_REGS_TEXT,STACK_TEXT}` 注入更真实的寄存器/回溯输出
+- `path_block_commands`：可选命令名数组。benchmark 会为该 case 临时构造一个 PATH 视图，把这些命令从 PATH 中隐藏掉，再用于 required-command 预检和实际 start/run。适合把 `gdb` / `gdb-mcp` / `codex` 缺失这类 host-like 退化路径稳定地做成可回放 case，而不是依赖手工改机器环境。
 - `expect`：可选结果断言。用于把“benchmark 成功”从单纯 `run_rc == 0` 提升为更接近真实 challenge / regression 的成功定义
 
 `expect` 支持的字段：

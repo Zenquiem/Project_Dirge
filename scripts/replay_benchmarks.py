@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import re
+import tempfile
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping
 
@@ -95,6 +96,23 @@ def _case_required_commands(case: Mapping[str, Any]) -> List[str]:
         cmd = str(item).strip()
         if cmd:
             out.append(cmd)
+    return out
+
+
+def _case_path_block_commands(case: Mapping[str, Any]) -> List[str]:
+    raw = case.get("path_block_commands", [])
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("path_block_commands must be a list")
+    out: List[str] = []
+    seen = set()
+    for item in raw:
+        cmd = os.path.basename(str(item).strip())
+        if not cmd or cmd in seen:
+            continue
+        seen.add(cmd)
+        out.append(cmd)
     return out
 
 
@@ -274,6 +292,9 @@ def summarize_case_contract(case_exec: Mapping[str, Any]) -> Dict[str, Any]:
     required_commands = [str(x).strip() for x in (case_exec.get("required_commands") or []) if str(x).strip()]
     if required_commands:
         out["required_commands"] = required_commands
+    path_block_commands = [str(x).strip() for x in (case_exec.get("path_block_commands") or []) if str(x).strip()]
+    if path_block_commands:
+        out["path_block_commands"] = path_block_commands
     return out
 
 
@@ -406,6 +427,53 @@ def evaluate_required_commands(
     return {"required": required, "checks": checks, "missing": missing, "ok": not missing}
 
 
+def _path_entries_from_env(env: Mapping[str, str] | None = None) -> List[str]:
+    merged_env = os.environ.copy()
+    if env:
+        merged_env.update({str(k): str(v) for k, v in env.items()})
+    raw_path = str(merged_env.get("PATH", "") or "")
+    out: List[str] = []
+    for item in raw_path.split(os.pathsep):
+        entry = str(item or "").strip()
+        if not entry:
+            continue
+        if not os.path.isabs(entry):
+            entry = os.path.abspath(os.path.join(ROOT_DIR, entry))
+        out.append(entry)
+    return out
+
+
+def build_blocked_path_dir(blocked_commands: List[str], *, env: Mapping[str, str] | None = None) -> tempfile.TemporaryDirectory[str] | None:
+    blocked = [os.path.basename(str(x).strip()) for x in (blocked_commands or []) if str(x).strip()]
+    if not blocked:
+        return None
+    blocked_set = set(blocked)
+    tmpdir = tempfile.TemporaryDirectory(prefix="dirge-bench-path-")
+    seen = set()
+    for base in _path_entries_from_env(env):
+        if not os.path.isdir(base):
+            continue
+        try:
+            names = sorted(os.listdir(base))
+        except Exception:
+            continue
+        for name in names:
+            if name in seen or name in blocked_set:
+                continue
+            src = os.path.join(base, name)
+            if not os.path.isfile(src) or (not os.access(src, os.X_OK)):
+                continue
+            dst = os.path.join(tmpdir.name, name)
+            try:
+                os.symlink(src, dst)
+            except FileExistsError:
+                pass
+            except Exception:
+                continue
+            seen.add(name)
+    return tmpdir
+
+
 def run_cmd(
     cmd: List[str], *, env: Dict[str, str] | None = None, timeout_seconds: int | None = None
 ) -> subprocess.CompletedProcess[str]:
@@ -451,6 +519,7 @@ def build_case_commands(
     env = _case_env(case)
     expect = _case_expect(case)
     required_commands = _case_required_commands(case)
+    path_block_commands = _case_path_block_commands(case)
     ensure_binary_executable = _case_bool(case, "ensure_binary_executable", False)
     clear_cached_artifacts = _case_bool(case, "clear_cached_artifacts", False)
     start_timeout_seconds = _case_timeout_seconds(case, "start_timeout_seconds")
@@ -495,6 +564,7 @@ def build_case_commands(
         "env": env,
         "expect": expect,
         "required_commands": required_commands,
+        "path_block_commands": path_block_commands,
         "ensure_binary_executable": ensure_binary_executable,
         "clear_cached_artifacts": clear_cached_artifacts,
         "start_timeout_seconds": start_timeout_seconds,
@@ -1191,108 +1261,122 @@ def main() -> int:
             str(case_exec.get("binary", "")).strip(),
             enabled=bool(case_exec.get("clear_cached_artifacts", False)),
         )
-        required_commands = evaluate_required_commands(
-            list(case_exec.get("required_commands") or []),
-            env=case_exec.get("env") or {},
-            cwd=(
-                os.path.join(ROOT_DIR, str(case_exec.get("challenge_dir", "")).strip())
-                if str(case_exec.get("challenge_dir", "")).strip() and not os.path.isabs(str(case_exec.get("challenge_dir", "")).strip())
-                else str(case_exec.get("challenge_dir", "")).strip() or ROOT_DIR
-            ),
-        )
-        if not required_commands.get("ok", True):
-            results.append(
-                {
-                    "case_id": case_id,
-                    "path": os.path.relpath(path, ROOT_DIR),
-                    "ok": True,
-                    "skipped": True,
-                    "reason": f"missing required commands: {', '.join(required_commands.get('missing', []))}",
-                    "session_id": session_id,
-                    "required_commands": required_commands,
-                    "binary_preflight": binary_preflight,
-                    "cache_preflight": cache_preflight,
-                }
+        path_block_commands = list(case_exec.get("path_block_commands") or [])
+        path_block_ctx = build_blocked_path_dir(path_block_commands, env=case_exec.get("env") or {})
+        try:
+            run_env = dict(case_exec.get("env") or {})
+            if path_block_ctx is not None:
+                run_env["PATH"] = path_block_ctx.name
+
+            required_commands = evaluate_required_commands(
+                list(case_exec.get("required_commands") or []),
+                env=run_env,
+                cwd=(
+                    os.path.join(ROOT_DIR, str(case_exec.get("challenge_dir", "")).strip())
+                    if str(case_exec.get("challenge_dir", "")).strip() and not os.path.isabs(str(case_exec.get("challenge_dir", "")).strip())
+                    else str(case_exec.get("challenge_dir", "")).strip() or ROOT_DIR
+                ),
             )
-            continue
+            if not required_commands.get("ok", True):
+                results.append(
+                    {
+                        "case_id": case_id,
+                        "path": os.path.relpath(path, ROOT_DIR),
+                        "ok": True,
+                        "skipped": True,
+                        "reason": f"missing required commands: {', '.join(required_commands.get('missing', []))}",
+                        "session_id": session_id,
+                        "required_commands": required_commands,
+                        "path_block_commands": path_block_commands,
+                        "binary_preflight": binary_preflight,
+                        "cache_preflight": cache_preflight,
+                    }
+                )
+                continue
 
-        p_start = run_cmd(
-            case_exec["cmd_start"],
-            env=case_exec["env"],
-            timeout_seconds=case_exec.get("start_timeout_seconds"),
-        )
-        if p_start.returncode != 0:
-            results.append(
-                {
-                    "case_id": case_id,
-                    "path": os.path.relpath(path, ROOT_DIR),
-                    "ok": False,
-                    "session_id": session_id,
-                    "start_rc": p_start.returncode,
-                    "start_stderr": p_start.stderr[-2000:],
-                    "start_stdout": p_start.stdout[-2000:],
-                    "start_timed_out": bool(getattr(p_start, "timed_out", False)),
-                    "start_timeout_seconds": getattr(p_start, "timeout_seconds", None),
-                    "start_cmd": case_exec["cmd_start"],
-                    "env_keys": sorted(case_exec["env"].keys()),
-                    "binary_preflight": binary_preflight,
-                    "cache_preflight": cache_preflight,
-                }
+            p_start = run_cmd(
+                case_exec["cmd_start"],
+                env=run_env,
+                timeout_seconds=case_exec.get("start_timeout_seconds"),
             )
-            continue
+            if p_start.returncode != 0:
+                results.append(
+                    {
+                        "case_id": case_id,
+                        "path": os.path.relpath(path, ROOT_DIR),
+                        "ok": False,
+                        "session_id": session_id,
+                        "start_rc": p_start.returncode,
+                        "start_stderr": p_start.stderr[-2000:],
+                        "start_stdout": p_start.stdout[-2000:],
+                        "start_timed_out": bool(getattr(p_start, "timed_out", False)),
+                        "start_timeout_seconds": getattr(p_start, "timeout_seconds", None),
+                        "start_cmd": case_exec["cmd_start"],
+                        "env_keys": sorted(run_env.keys()),
+                        "path_block_commands": path_block_commands,
+                        "binary_preflight": binary_preflight,
+                        "cache_preflight": cache_preflight,
+                    }
+                )
+                continue
 
-        p_run = run_cmd(
-            case_exec["cmd_run"],
-            env=case_exec["env"],
-            timeout_seconds=case_exec.get("run_timeout_seconds"),
-        )
-        item: Dict[str, Any] = {
-            "case_id": case_id,
-            "path": os.path.relpath(path, ROOT_DIR),
-            "session_id": session_id,
-            "case_contract": summarize_case_contract(case_exec),
-            "ok": p_run.returncode == 0,
-            "run_rc": p_run.returncode,
-            "run_timed_out": bool(getattr(p_run, "timed_out", False)),
-            "run_timeout_seconds": getattr(p_run, "timeout_seconds", None),
-            "start_cmd": case_exec["cmd_start"],
-            "run_cmd": case_exec["cmd_run"],
-            "env_keys": sorted(case_exec["env"].keys()),
-            "binary_preflight": binary_preflight,
-            "cache_preflight": cache_preflight,
-            "case_config": {
-                "challenge_dir": case_exec["challenge_dir"],
-                "binary": case_exec["binary"],
-                "max_loops": case_exec["max_loops"],
-                "allow_codex_missing": case_exec["allow_codex_missing"],
-                "start_no_codex": case_exec["start_no_codex"],
-                "start_session_args": case_exec["start_session_args"],
-                "run_session_args": case_exec["run_session_args"],
-                "expect": case_exec["expect"],
-                "required_commands": case_exec["required_commands"],
-                "ensure_binary_executable": case_exec["ensure_binary_executable"],
-                "clear_cached_artifacts": case_exec["clear_cached_artifacts"],
-                "start_timeout_seconds": case_exec["start_timeout_seconds"],
-                "run_timeout_seconds": case_exec["run_timeout_seconds"],
-            },
-        }
+            p_run = run_cmd(
+                case_exec["cmd_run"],
+                env=run_env,
+                timeout_seconds=case_exec.get("run_timeout_seconds"),
+            )
+            item: Dict[str, Any] = {
+                "case_id": case_id,
+                "path": os.path.relpath(path, ROOT_DIR),
+                "session_id": session_id,
+                "case_contract": summarize_case_contract(case_exec),
+                "ok": p_run.returncode == 0,
+                "run_rc": p_run.returncode,
+                "run_timed_out": bool(getattr(p_run, "timed_out", False)),
+                "run_timeout_seconds": getattr(p_run, "timeout_seconds", None),
+                "start_cmd": case_exec["cmd_start"],
+                "run_cmd": case_exec["cmd_run"],
+                "env_keys": sorted(run_env.keys()),
+                "path_block_commands": path_block_commands,
+                "binary_preflight": binary_preflight,
+                "cache_preflight": cache_preflight,
+                "case_config": {
+                    "challenge_dir": case_exec["challenge_dir"],
+                    "binary": case_exec["binary"],
+                    "max_loops": case_exec["max_loops"],
+                    "allow_codex_missing": case_exec["allow_codex_missing"],
+                    "start_no_codex": case_exec["start_no_codex"],
+                    "start_session_args": case_exec["start_session_args"],
+                    "run_session_args": case_exec["run_session_args"],
+                    "expect": case_exec["expect"],
+                    "required_commands": case_exec["required_commands"],
+                    "path_block_commands": case_exec.get("path_block_commands") or [],
+                    "ensure_binary_executable": case_exec["ensure_binary_executable"],
+                    "clear_cached_artifacts": case_exec["clear_cached_artifacts"],
+                    "start_timeout_seconds": case_exec["start_timeout_seconds"],
+                    "run_timeout_seconds": case_exec["run_timeout_seconds"],
+                },
+            }
 
-        if p_run.stdout.strip():
-            try:
-                item["run_output"] = json.loads(p_run.stdout)
-            except Exception:
-                item["run_stdout_tail"] = p_run.stdout[-2000:]
-        if p_run.stderr.strip():
-            item["run_stderr_tail"] = p_run.stderr[-2000:]
+            if p_run.stdout.strip():
+                try:
+                    item["run_output"] = json.loads(p_run.stdout)
+                except Exception:
+                    item["run_stdout_tail"] = p_run.stdout[-2000:]
+            if p_run.stderr.strip():
+                item["run_stderr_tail"] = p_run.stderr[-2000:]
 
-        item["metrics"] = _metrics_from_case_result(item)
+            item["metrics"] = _metrics_from_case_result(item)
 
-        expect = case_exec.get("expect", {})
-        if expect:
-            expectation_result = evaluate_case_expectations(item, expect)
-            item["expectation_result"] = expectation_result
-            item["ok"] = bool(expectation_result.get("ok", False))
-        results.append(item)
+            expect = case_exec.get("expect", {})
+            if expect:
+                expectation_result = evaluate_case_expectations(item, expect)
+                item["expectation_result"] = expectation_result
+                item["ok"] = bool(expectation_result.get("ok", False))
+            results.append(item)
+        finally:
+            if path_block_ctx is not None:
+                path_block_ctx.cleanup()
 
     scoreboard = compute_scoreboard(results)
     summary = {

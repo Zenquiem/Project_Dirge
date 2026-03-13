@@ -23,7 +23,7 @@ Clarification guardrail:
    - direct gdb probe
    - wrapper/runtime adapter behavior
 4. Keep OpenClaw and Codex CLI both viable as execution paths.
-5. Do not treat the true `no-gdb/no-codex` runtime route as the top priority for now unless it becomes a clear blocker to solve capability on the currently green main paths.
+5. Keep the true `no-gdb/no-codex` runtime route benchmarked and portable, but do not let benchmark harness work crowd out higher-value solve-capability seams once that route is green.
 
 ## 当前迭代原则（中文约束）
 1. 底盘类修复可以继续做，但前提是它们确实提升以下至少一项：
@@ -143,6 +143,7 @@ Clarification guardrail:
 - Fresh focused reruns kept both portable missing-Codex ret2win exploit slices green on the current tree:
   - `demo_local_ret2win_exploit`
   - `demo_direct_gdb_path_ret2win_exploit`
+- The true stripped-tool ret2win route is now benchmarked instead of only spot-checked: `demo_nogdb_nocodex_ret2win_exploit` uses replay-side `path_block_commands` to hide `gdb` / `gdb-mcp` / `codex` from PATH and keeps the portable `recon -> exploit_l3` route green with `exploit_success=true`.
 - The next valuable follow-up is to reduce remaining dependence on bounded local verify/bruteforce for recon-only ret2win cases by promoting more deterministic offset/control contracts from shared recon/gdb evidence into the exploit plan when available.
 
 ## Update Rule
