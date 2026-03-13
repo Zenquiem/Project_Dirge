@@ -1,0 +1,47 @@
+{
+  "id": "demo_direct_gdb_path_nonpie",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "clear_cached_artifacts": true,
+  "required_commands": ["gdb-mcp", "gdb"],
+  "run_session_args": ["--policy", "policy/agent_l0_l2.yaml", "--no-fast"],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_FORCE_DIRECT_GDB_ON_CODEX_MISSING": "1"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "state_paths": {
+      "session.session_id": "{{SESSION_ID}}",
+      "gdb.mode": "gdb_direct_probe",
+      "gdb.source": "gdb_direct_probe",
+      "gdb.stdin_source": "auto-cyclic",
+      "gdb.stdin_kind": "auto_cyclic",
+      "gdb.report": "artifacts/gdb/gdb_summary_{{SESSION_ID}}_01_direct.json",
+      "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+      "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+      "dynamic_evidence.evidence[0].gdb.control_rip": true,
+      "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+      "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+      "dynamic_evidence.inputs[0].stdin_source": "auto-cyclic",
+      "dynamic_evidence.inputs[0].kind": "auto_cyclic",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "dynamic_evidence.inputs[0].size": 320,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    },
+    "notes_contains": [
+      "direct gdb probe: on",
+      "codex missing: prefer portable local recon + direct gdb probe fallback"
+    ]
+  },
+  "notes": "本地 no-Codex benchmark，显式要求 PATH 上存在 gdb-mcp 与底层 gdb，并通过真实 direct gdb probe 路径验证 Dirge 不只是在 fake MCP shim 下通过；缺依赖时应 clean skip，而不是深层噪声失败。"
+}

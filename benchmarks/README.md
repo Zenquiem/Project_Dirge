@@ -17,6 +17,7 @@ Case 字段（常用）：
 - `run_session_args`：附加到 `run_session.py` 的参数数组
 - `env`：执行 `start_session.sh` / `run_session.py` 时注入的环境变量对象（例如 `CODEX_BIN`、`CODEX_DEFAULT_MODEL`）
   - 对 no-Codex 本地 gdb benchmark，可用 `DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING=1` 搭配 `DIRGE_LOCAL_GDB_STDIN_TEXT` / `DIRGE_LOCAL_GDB_STDIN_HEX` / `DIRGE_LOCAL_GDB_STDIN_FILE` 显式描述触发崩溃的输入
+  - 对 no-Codex direct-gdb benchmark，可用 `DIRGE_GDB_DIRECT_STDIN_TEXT` / `DIRGE_GDB_DIRECT_STDIN_HEX` / `DIRGE_GDB_DIRECT_STDIN_FILE`；若用 `scripts/fake_gdb_mcp.py` 固定 fault-only seam，也可通过 `DIRGE_FAKE_GDB_{RUN_TEXT,BT_TEXT,BOOT_REGS_TEXT,CRASH_REGS_TEXT,STACK_TEXT}` 注入更真实的寄存器/回溯输出
 - `expect`：可选结果断言。用于把“benchmark 成功”从单纯 `run_rc == 0` 提升为更接近真实 challenge / regression 的成功定义
 
 `expect` 支持的字段：
@@ -28,7 +29,7 @@ Case 字段（常用）：
 - `stage_sequence`：要求本轮 `stage_results[*].stage` 的实际执行顺序精确匹配；适合锁住可移植编排流，防止 case 因为多跑/乱序 stage 还“假绿”
 - `forbid_stage_cache_hits`：这些 stage 本轮不允许 `stage_cache_hit=true`，用于要求 fresh execution 而不是复用旧缓存
 - `metrics_min`：对 metrics.json 中的计数器做下限检查，例如 `{"exploit_success": 1}`
-- `state_paths`：对最终 state.json 做点路径精确匹配，例如 `{"session.status": "finished"}`；支持简单数组索引，如 `{"dynamic_evidence.evidence[0].gdb.signal": "SIGSEGV"}`
+- `state_paths`：对最终 state.json 做点路径精确匹配，例如 `{"session.status": "finished"}`；支持简单数组索引，也支持 `{{SESSION_ID}}` 占位符来锁定共享 state 的会话身份，例如 `{"session.session_id": "{{SESSION_ID}}", "dynamic_evidence.evidence[0].gdb.signal": "SIGSEGV"}`
 - `report_paths`：对 `run_session.py` 最终 JSON 输出里的路径字段做存在性断言；值可为 `"file"` / `"dir"` / `"exists"`，例如 `{"report": "file", "stage_results[0].stage_receipt": "file"}`
 - `report_path_contains`：对 `run_session.py` 输出里的路径字段做子串断言，适合要求产物路径明确属于当前 benchmark session；支持 `{{SESSION_ID}}` 占位符，例如 `{"report": "{{SESSION_ID}}"}`
 - `report_json_paths`：先取 `run_session.py` 输出里的某个 JSON 文件路径，再对该 JSON 内部字段做点路径精确匹配；适合验证 stage receipt / acceptance report / summary report 的嵌入身份没有串线，例如 `{"stage_results[0].stage_receipt": {"session_id": "{{SESSION_ID}}", "stage": "recon"}}`

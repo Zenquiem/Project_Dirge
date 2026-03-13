@@ -1,0 +1,55 @@
+{
+  "enabled": true,
+  "challenge_dir": "challenge/bench_ret2win",
+  "binary": "chall",
+  "max_loops": 1,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb",
+    "nm"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_ret2win/cyclic72.txt"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished",
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "capabilities.has_crash": true,
+      "static_analysis.entrypoints[0].name": "win",
+      "static_analysis.entrypoints[1].name": "main",
+      "static_analysis.suspects[0].name": "win",
+      "static_analysis.stack_smash_offset_guess": 72,
+      "capabilities.static_offset_candidate": 72,
+      "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_ret2win/cyclic72.txt"
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
+  },
+  "notes": "本地 no-Codex ret2win fixture，验证 local recon 现在会携带 symbol/address hints，而不再只剩 imports/protection 摘要"
+}

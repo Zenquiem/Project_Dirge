@@ -1,0 +1,43 @@
+{
+  "id": "demo_direct_gdb_sendline_nonpie",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "clear_cached_artifacts": true,
+  "run_session_args": ["--policy", "policy/agent_l0_l2.yaml", "--no-fast"],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+    "DIRGE_GDB_MCP_CWD": ".",
+    "DIRGE_GDB_DIRECT_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9\n",
+    "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+    "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "state_paths": {
+      "latest_bases.pie_base": "0x400000",
+      "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+      "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+      "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+      "dynamic_evidence.evidence[0].gdb.control_rip": true,
+      "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+      "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+      "dynamic_evidence.inputs[0].stdin_source": "text-env",
+      "dynamic_evidence.inputs[0].kind": "seeded_text",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+      "dynamic_evidence.inputs[0].cyclic_span": 120,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    }
+  },
+  "notes": "本地 no-Codex benchmark，通过 fake GDB MCP 走真实 gdb_direct_probe 入口，用 newline-terminated cyclic text 模拟 host-side sendline/fgets 输入，锁定 direct probe 也能保留 cyclic 前缀 offset 恢复。"
+}

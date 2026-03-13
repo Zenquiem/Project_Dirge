@@ -1,0 +1,60 @@
+{
+  "enabled": true,
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished",
+      "protections.pie": false,
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "latest_bases.pie_base": "0x400000",
+      "gdb.pie_base": "0x400000",
+      "gdb.pc_offset": "0x1170",
+      "gdb.stdin_source": "text-env",
+      "gdb.stdin_kind": "seeded_text",
+      "dynamic_evidence.inputs[0].stdin_source": "text-env",
+      "dynamic_evidence.inputs[0].kind": "seeded_text",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "capabilities.has_crash": true,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
+  },
+  "notes": "本地 no-Codex non-PIE benchmark，验证 portable local gdb fallback 在缺少 PIE mapping 时仍能恢复 pc_offset/offset_to_rip"
+}

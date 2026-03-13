@@ -1,0 +1,55 @@
+{
+  "enabled": true,
+  "challenge_dir": "challenge/bench_local_offset",
+  "binary": "chall",
+  "max_loops": 1,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished",
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "capabilities.has_crash": true,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88,
+      "latest_bases.offset_to_rip": 88,
+      "gdb.offset_to_rip": 88,
+      "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+      "dynamic_evidence.inputs[0].stdin_source": "auto-cyclic",
+      "dynamic_evidence.inputs[0].size": 320
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
+  },
+  "notes": "本地 no-Codex benchmark，不提供显式 stdin seed，要求 portable local gdb fallback 自动注入 cyclic pattern 并恢复 offset_to_rip/control_rip"
+}

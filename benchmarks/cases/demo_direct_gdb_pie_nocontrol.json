@@ -1,0 +1,38 @@
+{
+  "id": "demo_direct_gdb_pie_nocontrol",
+  "challenge_dir": "challenge/bench_local_gdb",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "clear_cached_artifacts": true,
+  "run_session_args": ["--policy", "policy/agent_l0_l2.yaml", "--no-fast"],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+    "DIRGE_GDB_MCP_CWD": ".",
+    "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_gdb/chall",
+    "DIRGE_FAKE_GDB_MAP_BASE": "0x555555554000",
+    "DIRGE_FAKE_GDB_CRASH_RIP": "0x55555555518a",
+    "DIRGE_FAKE_GDB_STACK_TEXT": "0x7fffffffdc20: 0x0000000000000000 0x00007ffff7dea24a"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "state_paths": {
+      "protections.pie": true,
+      "latest_bases.pie_base": "0x555555554000",
+      "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+      "dynamic_evidence.evidence[0].gdb.rip": "0x55555555518a",
+      "dynamic_evidence.evidence[0].gdb.pc_offset": "0x118a",
+      "dynamic_evidence.evidence[0].gdb.control_rip": false,
+      "capabilities.control_rip": false,
+      "capabilities.rip_control": "no"
+    }
+  },
+  "notes": "本地 no-Codex benchmark，通过 fake GDB MCP 走真实 gdb_direct_probe 入口，锁定 direct probe 在 PIE 映射下仍能记录 mapping-derived pie_base/pc_offset，且不会把普通崩溃误判成 RIP control。"
+}

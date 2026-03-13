@@ -1,0 +1,47 @@
+{
+  "id": "demo_direct_gdb_nonpie",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "clear_cached_artifacts": true,
+  "run_session_args": ["--policy", "policy/agent_l0_l2.yaml", "--no-fast"],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+    "DIRGE_GDB_MCP_CWD": ".",
+    "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+    "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "state_paths": {
+      "session.session_id": "{{SESSION_ID}}",
+      "latest_bases.pie_base": "0x400000",
+      "gdb.mode": "gdb_direct_probe",
+      "gdb.source": "gdb_direct_probe",
+      "gdb.stdin_source": "auto-cyclic",
+      "gdb.stdin_kind": "auto_cyclic",
+      "gdb.report": "artifacts/gdb/gdb_summary_{{SESSION_ID}}_01_direct.json",
+      "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+      "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+      "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+      "dynamic_evidence.evidence[0].gdb.control_rip": true,
+      "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+      "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+      "dynamic_evidence.inputs[0].stdin_source": "auto-cyclic",
+      "dynamic_evidence.inputs[0].kind": "auto_cyclic",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "dynamic_evidence.inputs[0].size": 320,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    }
+  },
+  "notes": "本地 no-Codex benchmark，通过 fake GDB MCP 走真实 gdb_direct_probe 入口，验证 direct probe adapter 不会漂移回退成仅靠 local fallback 的隐性成功"
+}

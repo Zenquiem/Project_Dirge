@@ -1,0 +1,57 @@
+{
+  "id": "demo_local_file_nonpie",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_local_nonpie/cyclic88.txt"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "state_paths": {
+      "session.status": "finished",
+      "protections.pie": false,
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "latest_bases.pie_base": "0x400000",
+      "gdb.pie_base": "0x400000",
+      "gdb.pc_offset": "0x1170",
+      "gdb.stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+      "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+      "dynamic_evidence.inputs[0].kind": "seeded_file",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "capabilities.has_crash": true,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
+  },
+  "notes": "本地 no-Codex benchmark，通过 repo-relative stdin 文件驱动 portable local gdb fallback，锁定 host-side 常见的 payload-file 重放路径不会因 CWD 或 adapter drift 失效。"
+}

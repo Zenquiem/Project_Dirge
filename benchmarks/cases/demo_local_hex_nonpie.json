@@ -1,0 +1,63 @@
+{
+  "id": "demo_local_hex_nonpie",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_HEX": "614130614131614132614133614134614135614136614137614138614139614230614231614232614233614234614235614236614237614238614239614330614331614332614333614334614335614336614337614338614339614430614431614432614433614434614435614436614437614438614439"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "metrics_min": {
+      "runs_total": 1
+    },
+    "state_paths": {
+      "session.status": "finished",
+      "protections.pie": false,
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "latest_bases.pie_base": "0x400000",
+      "gdb.pie_base": "0x400000",
+      "gdb.pc_offset": "0x1170",
+      "gdb.stdin_source": "hex-env",
+      "gdb.stdin_kind": "seeded_hex",
+      "dynamic_evidence.inputs[0].stdin_source": "hex-env",
+      "dynamic_evidence.inputs[0].kind": "seeded_hex",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+      "dynamic_evidence.inputs[0].cyclic_span": 120,
+      "capabilities.has_crash": true,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
+  },
+  "notes": "本地 no-Codex benchmark，通过 hex-env 注入 cyclic payload，锁定 portable local gdb fallback 的 binary-safe stdin 路径在 host-side 仍可恢复 offset。"
+}

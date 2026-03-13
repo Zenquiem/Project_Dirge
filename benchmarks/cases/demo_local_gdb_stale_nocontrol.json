@@ -1,0 +1,71 @@
+{
+  "id": "demo_local_gdb_stale_nocontrol",
+  "challenge_dir": "challenge/bench_local_nocontrol",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_TEXT": "TRIGGER\n"
+  },
+  "pre_run_state_patch": {
+    "capabilities": {
+      "control_rip": true,
+      "rip_control": "yes",
+      "offset_to_rip": 88
+    },
+    "latest_bases": {
+      "offset_to_rip": 88
+    },
+    "io_profile": {
+      "offset_to_rip": 88
+    }
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "state_paths": {
+      "session.status": "finished",
+      "session.session_id": "{{SESSION_ID}}",
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "dynamic_evidence.inputs[0].stdin_source": "text-env",
+      "capabilities.has_crash": true,
+      "capabilities.control_rip": false,
+      "capabilities.rip_control": "no"
+    },
+    "state_paths_absent": {
+      "capabilities.offset_to_rip": true,
+      "latest_bases.offset_to_rip": true,
+      "io_profile.offset_to_rip": true,
+      "dynamic_evidence.evidence[0].gdb.offset_to_rip": true
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback"
+    ]
+  },
+  "notes": "本地 no-Codex warm-state benchmark：先注入陈旧 RIP control/offset，再验证 portable local gdb fallback 遇到 fresh plain crash 时会清掉 stale exploitability 结论。"
+}

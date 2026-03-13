@@ -1,0 +1,44 @@
+{
+  "id": "demo_direct_gdb_hex_nonpie",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "clear_cached_artifacts": true,
+  "run_session_args": ["--policy", "policy/agent_l0_l2.yaml", "--no-fast"],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+    "DIRGE_GDB_MCP_CWD": ".",
+    "DIRGE_GDB_DIRECT_STDIN_HEX": "614130614131614132614133614134614135614136614137614138614139614230614231614232614233614234614235614236614237614238614239614330614331614332614333614334614335614336614337614338614339614430614431614432614433614434614435614436614437614438614439",
+    "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+    "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "state_paths": {
+      "session.session_id": "{{SESSION_ID}}",
+      "latest_bases.pie_base": "0x400000",
+      "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+      "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+      "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+      "dynamic_evidence.evidence[0].gdb.control_rip": true,
+      "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+      "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+      "dynamic_evidence.inputs[0].stdin_source": "hex-env",
+      "dynamic_evidence.inputs[0].kind": "seeded_hex",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+      "dynamic_evidence.inputs[0].cyclic_span": 120,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    }
+  },
+  "notes": "本地 no-Codex benchmark，通过 hex-env 驱动真实 direct gdb probe 入口，锁定 host-side binary-safe payload 注入不会只在单测里成立。"
+}

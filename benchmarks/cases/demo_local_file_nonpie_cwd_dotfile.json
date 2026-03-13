@@ -1,0 +1,68 @@
+{
+  "id": "demo_local_file_nonpie_cwd_dotfile",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "ensure_binary_executable": true,
+  "clear_cached_artifacts": true,
+  "required_commands": [
+    "gdb"
+  ],
+  "cwd": "challenge/bench_local_nonpie",
+  "run_session_args": [
+    "--policy=policy/agent_l0_l2.yaml",
+    "--budget=policy/budget.yaml",
+    "--stage-contracts=policy/stage_contracts.yaml",
+    "--stage-runner=policy/stage_runner.yaml"
+  ],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_LOCAL_GDB_STDIN_FILE": "./cyclic88.txt"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "required_success_stages": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "stage_sequence": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "forbid_stage_cache_hits": [
+      "recon",
+      "gdb_evidence"
+    ],
+    "state_paths": {
+      "session.status": "finished",
+      "session.session_id": "{{SESSION_ID}}",
+      "protections.pie": false,
+      "recon.mode": "local_recon_fallback",
+      "gdb.mode": "local_gdb_fallback",
+      "gdb.signal": "SIGSEGV",
+      "latest_bases.pie_base": "0x400000",
+      "gdb.pie_base": "0x400000",
+      "gdb.pc_offset": "0x1170",
+      "gdb.stdin_source": "file:./cyclic88.txt",
+      "dynamic_evidence.inputs[0].stdin_source": "file:./cyclic88.txt",
+      "dynamic_evidence.inputs[0].kind": "seeded_file",
+      "dynamic_evidence.inputs[0].cyclic_compatible": true,
+      "capabilities.has_crash": true,
+      "capabilities.control_rip": true,
+      "capabilities.offset_to_rip": 88
+    },
+    "notes_contains": [
+      "codex missing: prefer portable local recon + local gdb evidence fallback",
+      "direct gdb probe: off",
+      "fast profile: disable direct gdb probe to honor local gdb fallback preference when codex is unavailable"
+    ],
+    "notes_absent": [
+      "OpenClaw-specific fallback",
+      "direct gdb probe: on"
+    ]
+  },
+  "notes": "从 challenge 工作目录启动的 host-like non-PIE benchmark，通过 cwd-relative ./cyclic88.txt 重放 payload 文件，锁住更接近真实 host shell 的 DIRGE_LOCAL_GDB_STDIN_FILE 形态。"
+}

@@ -84,6 +84,20 @@ def _case_env(case: Mapping[str, Any]) -> Dict[str, str]:
     return env
 
 
+def _case_required_commands(case: Mapping[str, Any]) -> List[str]:
+    raw = case.get("required_commands", [])
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("required_commands must be a list")
+    out: List[str] = []
+    for item in raw:
+        cmd = str(item).strip()
+        if cmd:
+            out.append(cmd)
+    return out
+
+
 def _case_timeout_seconds(case: Mapping[str, Any], key: str) -> int | None:
     if key not in case:
         return None
@@ -242,7 +256,7 @@ def _json_sha256(doc: Any) -> str:
 
 
 def summarize_case_contract(case_exec: Mapping[str, Any]) -> Dict[str, Any]:
-    return {
+    out = {
         "challenge_dir": str(case_exec.get("challenge_dir", "")).strip(),
         "binary": str(case_exec.get("binary", "")).strip(),
         "max_loops": int(case_exec.get("max_loops", 1) or 1),
@@ -257,6 +271,10 @@ def summarize_case_contract(case_exec: Mapping[str, Any]) -> Dict[str, Any]:
         "start_timeout_seconds": case_exec.get("start_timeout_seconds"),
         "run_timeout_seconds": case_exec.get("run_timeout_seconds"),
     }
+    required_commands = [str(x).strip() for x in (case_exec.get("required_commands") or []) if str(x).strip()]
+    if required_commands:
+        out["required_commands"] = required_commands
+    return out
 
 
 def clear_case_cached_artifacts(challenge_dir: str, binary: str, *, enabled: bool) -> Dict[str, Any]:
@@ -345,6 +363,49 @@ def ensure_case_binary_executable(challenge_dir: str, binary: str, *, enabled: b
     return info
 
 
+def _resolve_command_on_path(command: str, *, env: Mapping[str, str] | None = None, cwd: str = ROOT_DIR) -> str:
+    cmd = str(command or "").strip()
+    if not cmd:
+        return ""
+    if os.path.dirname(cmd):
+        candidate = cmd if os.path.isabs(cmd) else os.path.abspath(os.path.join(cwd, cmd))
+        return candidate if os.path.isfile(candidate) and os.access(candidate, os.X_OK) else ""
+
+    path_entries: List[str] = []
+    raw_path = None
+    if env:
+        raw_path = env.get("PATH")
+    if raw_path is None:
+        raw_path = os.environ.get("PATH", "")
+    for entry in str(raw_path or "").split(os.pathsep):
+        if not entry:
+            continue
+        base = entry if os.path.isabs(entry) else os.path.abspath(os.path.join(cwd, entry))
+        path_entries.append(base)
+    if not path_entries:
+        path_entries = os.get_exec_path({"PATH": os.environ.get("PATH", "")})
+    for entry in path_entries:
+        candidate = os.path.join(entry, cmd)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return ""
+
+
+def evaluate_required_commands(
+    required_commands: List[str], *, env: Mapping[str, str] | None = None, cwd: str = ROOT_DIR
+) -> Dict[str, Any]:
+    required = [str(x).strip() for x in required_commands if str(x).strip()]
+    checks: Dict[str, Any] = {}
+    missing: List[str] = []
+    for cmd in required:
+        resolved = _resolve_command_on_path(cmd, env=env, cwd=cwd)
+        ok = bool(resolved)
+        checks[cmd] = {"ok": ok, "resolved": resolved}
+        if not ok:
+            missing.append(cmd)
+    return {"required": required, "checks": checks, "missing": missing, "ok": not missing}
+
+
 def run_cmd(
     cmd: List[str], *, env: Dict[str, str] | None = None, timeout_seconds: int | None = None
 ) -> subprocess.CompletedProcess[str]:
@@ -389,6 +450,7 @@ def build_case_commands(
     run_session_args = _case_str_list(case, "run_session_args")
     env = _case_env(case)
     expect = _case_expect(case)
+    required_commands = _case_required_commands(case)
     ensure_binary_executable = _case_bool(case, "ensure_binary_executable", False)
     clear_cached_artifacts = _case_bool(case, "clear_cached_artifacts", False)
     start_timeout_seconds = _case_timeout_seconds(case, "start_timeout_seconds")
@@ -432,6 +494,7 @@ def build_case_commands(
         "run_session_args": run_session_args,
         "env": env,
         "expect": expect,
+        "required_commands": required_commands,
         "ensure_binary_executable": ensure_binary_executable,
         "clear_cached_artifacts": clear_cached_artifacts,
         "start_timeout_seconds": start_timeout_seconds,
@@ -663,10 +726,18 @@ def evaluate_case_expectations(item: Dict[str, Any], expect: Mapping[str, Any]) 
         state_checks: Dict[str, Any] = {}
         for dotted_path, expected in state_paths.items():
             actual = _get_path_value(state_doc, str(dotted_path))
-            ok = actual == expected
-            state_checks[str(dotted_path)] = {"ok": ok, "actual": actual, "expected": expected}
+            expanded_expected = _expand_expected_value(expected, item=item)
+            ok = actual == expanded_expected
+            state_checks[str(dotted_path)] = {
+                "ok": ok,
+                "actual": actual,
+                "expected": expanded_expected,
+                "raw_expected": expected,
+            }
             if not ok:
-                errors.append(f"state_paths.{dotted_path} mismatch: actual={actual!r} expected={expected!r}")
+                errors.append(
+                    f"state_paths.{dotted_path} mismatch: actual={actual!r} expected={expanded_expected!r}"
+                )
         if state_checks:
             checks["state_paths"] = state_checks
 
@@ -1120,6 +1191,30 @@ def main() -> int:
             str(case_exec.get("binary", "")).strip(),
             enabled=bool(case_exec.get("clear_cached_artifacts", False)),
         )
+        required_commands = evaluate_required_commands(
+            list(case_exec.get("required_commands") or []),
+            env=case_exec.get("env") or {},
+            cwd=(
+                os.path.join(ROOT_DIR, str(case_exec.get("challenge_dir", "")).strip())
+                if str(case_exec.get("challenge_dir", "")).strip() and not os.path.isabs(str(case_exec.get("challenge_dir", "")).strip())
+                else str(case_exec.get("challenge_dir", "")).strip() or ROOT_DIR
+            ),
+        )
+        if not required_commands.get("ok", True):
+            results.append(
+                {
+                    "case_id": case_id,
+                    "path": os.path.relpath(path, ROOT_DIR),
+                    "ok": True,
+                    "skipped": True,
+                    "reason": f"missing required commands: {', '.join(required_commands.get('missing', []))}",
+                    "session_id": session_id,
+                    "required_commands": required_commands,
+                    "binary_preflight": binary_preflight,
+                    "cache_preflight": cache_preflight,
+                }
+            )
+            continue
 
         p_start = run_cmd(
             case_exec["cmd_start"],
@@ -1174,6 +1269,7 @@ def main() -> int:
                 "start_session_args": case_exec["start_session_args"],
                 "run_session_args": case_exec["run_session_args"],
                 "expect": case_exec["expect"],
+                "required_commands": case_exec["required_commands"],
                 "ensure_binary_executable": case_exec["ensure_binary_executable"],
                 "clear_cached_artifacts": case_exec["clear_cached_artifacts"],
                 "start_timeout_seconds": case_exec["start_timeout_seconds"],

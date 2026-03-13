@@ -1,0 +1,39 @@
+{
+  "id": "demo_direct_gdb_nocontrol",
+  "challenge_dir": "challenge/bench_local_nonpie",
+  "binary": "chall",
+  "max_loops": 1,
+  "start_no_codex": true,
+  "allow_codex_missing": true,
+  "clear_cached_artifacts": true,
+  "run_session_args": ["--policy", "policy/agent_l0_l2.yaml", "--no-fast"],
+  "env": {
+    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+    "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+    "DIRGE_GDB_MCP_CWD": ".",
+    "DIRGE_GDB_DIRECT_STDIN_TEXT": "AAAA",
+    "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+    "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170",
+    "DIRGE_FAKE_GDB_STACK_TEXT": "0x7fffffffdc20: 0x0000000000000000 0x00007ffff7dea24a"
+  },
+  "expect": {
+    "run_rc": 0,
+    "final_exit_code": 0,
+    "acceptance_passed": true,
+    "required_success_stages": ["recon", "gdb_evidence"],
+    "stage_sequence": ["recon", "gdb_evidence"],
+    "forbid_stage_cache_hits": ["recon", "gdb_evidence"],
+    "state_paths": {
+      "latest_bases.pie_base": "0x400000",
+      "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+      "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+      "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+      "dynamic_evidence.evidence[0].gdb.control_rip": false,
+      "dynamic_evidence.inputs[0].stdin_source": "text-env",
+      "dynamic_evidence.inputs[0].kind": "seeded_text",
+      "capabilities.control_rip": false,
+      "capabilities.rip_control": "no"
+    }
+  },
+  "notes": "本地 no-Codex benchmark，通过 fake GDB MCP 走真实 gdb_direct_probe 入口，锁定 direct probe 在 fresh plain crash 上不会保留陈旧 RIP 控制结论。"
+}

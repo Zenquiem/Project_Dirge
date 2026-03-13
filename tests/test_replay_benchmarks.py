@@ -166,7 +166,8 @@ class ReplayBenchmarksTests(unittest.TestCase):
             with open(state_abs, "w", encoding="utf-8") as f:
                 json.dump(
                     {
-                        "session": {"status": "finished"},
+                        "session": {"status": "finished", "session_id": "bench_demo_20260310"},
+                        "challenge": {"import_meta": {"session_id": "bench_demo_20260310"}},
                         "progress": {"stage": "exploit"},
                         "dynamic_evidence": {
                             "evidence": [{"gdb": {"signal": "SIGSEGV", "pc_offset": "0x1234"}}],
@@ -215,6 +216,8 @@ class ReplayBenchmarksTests(unittest.TestCase):
                     "metrics_min": {"runs_total": 1, "exploit_success": 1},
                     "state_paths": {
                         "session.status": "finished",
+                        "session.session_id": "{{SESSION_ID}}",
+                        "challenge.import_meta.session_id": "{{SESSION_ID}}",
                         "progress.stage": "exploit",
                         "dynamic_evidence.evidence[0].gdb.signal": "SIGSEGV",
                         "dynamic_evidence.inputs[0].stdin_source": "text-env",
@@ -533,6 +536,58 @@ class ReplayBenchmarksTests(unittest.TestCase):
         self.assertFalse(res["ok"])
         self.assertFalse(res["case_checks"]["demo_local"]["ok"])
         self.assertTrue(any("baseline case missing from current run: demo_local" in x for x in res["errors"]))
+
+    def test_build_case_commands_keeps_required_commands_in_contract(self):
+        plan = rb.build_case_commands(
+            {
+                "challenge_dir": "challenge/demo",
+                "binary": "chall_true",
+                "required_commands": ["gdb", "nm"],
+            },
+            case_id="demo_required_cmds",
+            session_id="bench_demo_required_cmds_20260313T000000Z",
+            allow_codex_missing_default=False,
+        )
+
+        self.assertEqual(plan["required_commands"], ["gdb", "nm"])
+        contract = rb.summarize_case_contract(plan)
+        self.assertEqual(contract["required_commands"], ["gdb", "nm"])
+
+    def test_summarize_case_contract_omits_empty_required_commands_for_hash_stability(self):
+        plan = rb.build_case_commands(
+            {
+                "challenge_dir": "challenge/demo",
+                "binary": "chall_true",
+                "required_commands": [],
+            },
+            case_id="demo_no_required_cmds",
+            session_id="bench_demo_no_required_cmds_20260313T000000Z",
+            allow_codex_missing_default=False,
+        )
+
+        contract = rb.summarize_case_contract(plan)
+        self.assertNotIn("required_commands", contract)
+
+    def test_evaluate_required_commands_reports_missing_and_found(self):
+        with tempfile.TemporaryDirectory() as td:
+            bindir = os.path.join(td, "bin")
+            os.makedirs(bindir, exist_ok=True)
+            found_cmd = os.path.join(bindir, "demo-cmd")
+            with open(found_cmd, "w", encoding="utf-8") as f:
+                f.write("#!/bin/sh\nexit 0\n")
+            os.chmod(found_cmd, 0o755)
+
+            res = rb.evaluate_required_commands(
+                ["demo-cmd", "missing-cmd"],
+                env={"PATH": os.path.join(".", "bin")},
+                cwd=td,
+            )
+
+            self.assertFalse(res["ok"])
+            self.assertEqual(res["missing"], ["missing-cmd"])
+            self.assertTrue(res["checks"]["demo-cmd"]["ok"])
+            self.assertTrue(res["checks"]["demo-cmd"]["resolved"].endswith(os.path.join("bin", "demo-cmd")))
+            self.assertFalse(res["checks"]["missing-cmd"]["ok"])
 
 
 if __name__ == "__main__":

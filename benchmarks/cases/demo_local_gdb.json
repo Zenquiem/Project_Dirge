@@ -21,6 +21,8 @@
     },
     "state_paths": {
       "session.status": "finished",
+      "session.session_id": "{{SESSION_ID}}",
+      "challenge.import_meta.session_id": "{{SESSION_ID}}",
       "recon.mode": "local_recon_fallback",
       "recon.analysis_ready": true,
       "gdb.mode": "local_gdb_fallback",

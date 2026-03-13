@@ -1,21 +1,952 @@
 {
-  "generated_utc": "2026-03-10T20:02:19Z",
-  "source_report": "artifacts/reports/benchmark_replay_20260310T200217Z.json",
+  "generated_utc": "2026-03-13T01:13:03Z",
+  "source_report": "artifacts/reports/benchmark_replay_20260313T011107Z.json",
   "scoreboard": {
-    "cases_total": 3,
-    "cases_executed": 2,
+    "cases_total": 28,
+    "cases_executed": 27,
     "cases_skipped": 1,
-    "cases_ok": 2,
+    "cases_ok": 27,
     "cases_failed": 0,
     "success_rate": 1.0,
     "codex_errors_total": 0,
     "stage_retries_total": 0,
     "recoverable_failures_total": 0,
-    "capability_updates_total": 0,
-    "exploit_success_total": 0,
-    "objective_score_avg": 45.0
+    "capability_updates_total": 30,
+    "exploit_success_total": 3,
+    "objective_score_avg": 67.14814814814815
   },
   "cases": [
+    {
+      "case_id": "demo_direct_gdb_file_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_FILE": "challenge/bench_local_nonpie/cyclic88.txt",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+            "dynamic_evidence.inputs[0].kind": "seeded_file",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "6064d6ab3076fa1d5809ed9dd9840277a02b381a79e0431b205524400ce73ba0",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_file_nonpie_cwd",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 -u scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_FILE": "challenge/bench_local_nonpie/cyclic88.txt",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.session_id": "{{SESSION_ID}}",
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+            "dynamic_evidence.inputs[0].kind": "seeded_file",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "direct gdb probe: on",
+            "codex missing: prefer portable local recon + direct gdb probe fallback"
+          ]
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "594f6abd9bd221270b6073a16a227ad323f30895b48ac24a1bbcb9fa20748c76",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_file_nonpie_cwd_dotfile",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 -u scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_FILE": "./cyclic88.txt",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.session_id": "{{SESSION_ID}}",
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].stdin_source": "file:./cyclic88.txt",
+            "dynamic_evidence.inputs[0].kind": "seeded_file",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "direct gdb probe: on",
+            "codex missing: prefer portable local recon + direct gdb probe fallback"
+          ]
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "99c49abe695fde8088ffbec902523199a2642ecf4c7d9b40a8eaf366a63c48c8",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_hex_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_HEX": "614130614131614132614133614134614135614136614137614138614139614230614231614232614233614234614235614236614237614238614239614330614331614332614333614334614335614336614337614338614339614430614431614432614433614434614435614436614437614438614439",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.session_id": "{{SESSION_ID}}",
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+            "dynamic_evidence.inputs[0].stdin_source": "hex-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_hex",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+            "dynamic_evidence.inputs[0].cyclic_span": 120,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "a6e36a7afb3e1f1ea92aa10671f055dc48426b49ff66898679fafea8f0e7d662",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_nocontrol",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_TEXT": "AAAA",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170",
+          "DIRGE_FAKE_GDB_STACK_TEXT": "0x7fffffffdc20: 0x0000000000000000 0x00007ffff7dea24a"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": false,
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_text",
+            "capabilities.control_rip": false,
+            "capabilities.rip_control": "no"
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "73e22e8f2d0383f6918b4e0377711ea31f40a8209fa1a3eb72c74f4e77fa90c6",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.session_id": "{{SESSION_ID}}",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.mode": "gdb_direct_probe",
+            "gdb.source": "gdb_direct_probe",
+            "gdb.stdin_source": "auto-cyclic",
+            "gdb.stdin_kind": "auto_cyclic",
+            "gdb.report": "artifacts/gdb/gdb_summary_{{SESSION_ID}}_01_direct.json",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+            "dynamic_evidence.inputs[0].stdin_source": "auto-cyclic",
+            "dynamic_evidence.inputs[0].kind": "auto_cyclic",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "dynamic_evidence.inputs[0].size": 320,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "31c02e70630bb95045ba0110943d741ecd7810c41fce02e9ff1de0117ad6d2ed",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_path_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_FORCE_DIRECT_GDB_ON_CODEX_MISSING": "1"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.session_id": "{{SESSION_ID}}",
+            "gdb.mode": "gdb_direct_probe",
+            "gdb.source": "gdb_direct_probe",
+            "gdb.stdin_source": "auto-cyclic",
+            "gdb.stdin_kind": "auto_cyclic",
+            "gdb.report": "artifacts/gdb/gdb_summary_{{SESSION_ID}}_01_direct.json",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+            "dynamic_evidence.inputs[0].stdin_source": "auto-cyclic",
+            "dynamic_evidence.inputs[0].kind": "auto_cyclic",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "dynamic_evidence.inputs[0].size": 320,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "direct gdb probe: on",
+            "codex missing: prefer portable local recon + direct gdb probe fallback"
+          ]
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb-mcp",
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "47c2064486f334c837e0d5db2901ae28d21780c824d85e5ace479e69b4a8fa1a",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_path_ret2win_exploit",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_ret2win",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_DIRECT_STDIN_FILE": "challenge/bench_ret2win/cyclic72.txt"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "gdb.mode": "gdb_direct_probe",
+            "gdb.source": "gdb_direct_probe",
+            "gdb.stdin_source": "file:challenge/bench_ret2win/cyclic72.txt",
+            "gdb.stdin_kind": "seeded_file",
+            "gdb.fault_offset_candidate": 65,
+            "gdb.static_offset_candidate": 72,
+            "capabilities.has_crash": true,
+            "capabilities.fault_offset_candidate": 65,
+            "capabilities.static_offset_candidate": 72,
+            "capabilities.ret2win_path_verified": true,
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.fault_offset_candidate": 65,
+            "dynamic_evidence.evidence[0].gdb.static_offset_candidate": 72,
+            "dynamic_evidence.evidence[0].gdb.control_rip": false
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + direct gdb probe + local exploit plugin",
+            "direct gdb probe: on",
+            "local exploit plugin: on",
+            "objective stop: defer until local no-codex exploit stage gets a run"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb-mcp",
+          "gdb",
+          "nm"
+        ]
+      },
+      "case_contract_hash": "b25ff5c5887bfa7b78036d8c1c9b2a9726060bbc4ab66bdc2d2586584d90a8c7",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "exploit_l3",
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence",
+        "exploit_l3"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_pie_nocontrol",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_gdb",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_gdb/chall",
+          "DIRGE_FAKE_GDB_MAP_BASE": "0x555555554000",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x55555555518a",
+          "DIRGE_FAKE_GDB_STACK_TEXT": "0x7fffffffdc20: 0x0000000000000000 0x00007ffff7dea24a"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "protections.pie": true,
+            "latest_bases.pie_base": "0x555555554000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x55555555518a",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x118a",
+            "dynamic_evidence.evidence[0].gdb.control_rip": false,
+            "capabilities.control_rip": false,
+            "capabilities.rip_control": "no"
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "fe82fd1fe531b0821eb08cedbe2bece912c64e8e1b2213f3d38e7bbfe8ba6505",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_ret2win_exploit",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_ret2win",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_DIRECT_STDIN_FILE": "challenge/bench_ret2win/cyclic72.txt",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_ret2win/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x0",
+          "DIRGE_FAKE_GDB_CRASH_REGS_TEXT": "rip            0x0                 0x0\n",
+          "DIRGE_FAKE_GDB_BT_TEXT": "Backtrace stopped: Cannot access memory at address 0x7861617761617669\n",
+          "DIRGE_FAKE_GDB_STACK_TEXT": "0x7fffffffe358:\t0x00000000004011e6\t0x0000000100000000\n"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "gdb.mode": "gdb_direct_probe",
+            "gdb.source": "gdb_direct_probe",
+            "gdb.stdin_source": "file:challenge/bench_ret2win/cyclic72.txt",
+            "gdb.stdin_kind": "seeded_file",
+            "gdb.fault_offset_candidate": 65,
+            "gdb.static_offset_candidate": 72,
+            "capabilities.has_crash": true,
+            "capabilities.fault_offset_candidate": 65,
+            "capabilities.static_offset_candidate": 72,
+            "capabilities.ret2win_path_verified": true,
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.fault_addr": "0x7861617761617669",
+            "dynamic_evidence.evidence[0].gdb.fault_offset_candidate": 65,
+            "dynamic_evidence.evidence[0].gdb.static_offset_candidate": 72,
+            "dynamic_evidence.evidence[0].gdb.control_rip": false
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + direct gdb probe + local exploit plugin",
+            "direct gdb probe: on",
+            "local exploit plugin: on",
+            "objective stop: defer until local no-codex exploit stage gets a run"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "805a56385fe40a1110a29ccffedd74728e8f92c6c891867d6ed1b72578c09d2f",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "exploit_l3",
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence",
+        "exploit_l3"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_sendline_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9\n",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": true,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].source": "gdb_direct_probe",
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_text",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+            "dynamic_evidence.inputs[0].cyclic_span": 120,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "90577062e4aca782012ae8bd9dff62fc131aca292fd45d5e303536cdc0882202",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_direct_gdb_stale_nocontrol",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy",
+          "policy/agent_l0_l2.yaml",
+          "--no-fast"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_GDB_MCP_CMD": "python3 scripts/fake_gdb_mcp.py",
+          "DIRGE_GDB_MCP_CWD": ".",
+          "DIRGE_GDB_DIRECT_STDIN_TEXT": "AAAA",
+          "DIRGE_FAKE_GDB_BINARY": "challenge/bench_local_nonpie/chall",
+          "DIRGE_FAKE_GDB_CRASH_RIP": "0x401170",
+          "DIRGE_FAKE_GDB_STACK_TEXT": "0x7fffffffdc20: 0x0000000000000000 0x00007ffff7dea24a"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "latest_bases.pie_base": "0x400000",
+            "dynamic_evidence.evidence[0].source": "gdb_direct_probe",
+            "dynamic_evidence.evidence[0].gdb.rip": "0x401170",
+            "dynamic_evidence.evidence[0].gdb.pc_offset": "0x1170",
+            "dynamic_evidence.evidence[0].gdb.control_rip": false,
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_text",
+            "capabilities.control_rip": false,
+            "capabilities.rip_control": "no"
+          }
+        },
+        "ensure_binary_executable": false,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null
+      },
+      "case_contract_hash": "73e22e8f2d0383f6918b4e0377711ea31f40a8209fa1a3eb72c74f4e77fa90c6",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
     {
       "case_id": "demo_local",
       "ok": true,
@@ -70,6 +1001,323 @@
       ]
     },
     {
+      "case_id": "demo_local_autocyclic_offset",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_offset",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88,
+            "latest_bases.offset_to_rip": 88,
+            "gdb.offset_to_rip": 88,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].stdin_source": "auto-cyclic",
+            "dynamic_evidence.inputs[0].size": 320
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "8a0a59c13ee60bf21a1e1c68d7498a7bbd08d5fdace9063ce3d849b1c0e75592",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_file_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_local_nonpie/cyclic88.txt"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.status": "finished",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+            "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+            "dynamic_evidence.inputs[0].kind": "seeded_file",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "d292e16ee80bfa99dfe72f4bd76264d30fa867b6b0048dc1ef1f3b5d37b7fdbe",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_file_nonpie_cwd",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy=policy/agent_l0_l2.yaml",
+          "--budget=policy/budget.yaml",
+          "--stage-contracts=policy/stage_contracts.yaml",
+          "--stage-runner=policy/stage_runner.yaml"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_local_nonpie/cyclic88.txt"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.status": "finished",
+            "session.session_id": "{{SESSION_ID}}",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+            "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_local_nonpie/cyclic88.txt",
+            "dynamic_evidence.inputs[0].kind": "seeded_file",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback",
+            "direct gdb probe: off",
+            "fast profile: disable direct gdb probe to honor local gdb fallback preference when codex is unavailable"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback",
+            "direct gdb probe: on"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "3772d460bc36a9f5b12234de9e60db7063730323c857bbb59c223ea152d55704",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_file_nonpie_cwd_dotfile",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy=policy/agent_l0_l2.yaml",
+          "--budget=policy/budget.yaml",
+          "--stage-contracts=policy/stage_contracts.yaml",
+          "--stage-runner=policy/stage_runner.yaml"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_FILE": "./cyclic88.txt"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.status": "finished",
+            "session.session_id": "{{SESSION_ID}}",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "file:./cyclic88.txt",
+            "dynamic_evidence.inputs[0].stdin_source": "file:./cyclic88.txt",
+            "dynamic_evidence.inputs[0].kind": "seeded_file",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback",
+            "direct gdb probe: off",
+            "fast profile: disable direct gdb probe to honor local gdb fallback preference when codex is unavailable"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback",
+            "direct gdb probe: on"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "550318de2f10b04cdfc8b2283e662d041581d728a6dbdc8001b3cc05d2f98d6e",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
       "case_id": "demo_local_gdb",
       "ok": true,
       "run_rc": 0,
@@ -105,6 +1353,8 @@
           },
           "state_paths": {
             "session.status": "finished",
+            "session.session_id": "{{SESSION_ID}}",
+            "challenge.import_meta.session_id": "{{SESSION_ID}}",
             "recon.mode": "local_recon_fallback",
             "recon.analysis_ready": true,
             "gdb.mode": "local_gdb_fallback",
@@ -159,7 +1409,703 @@
         "start_timeout_seconds": null,
         "run_timeout_seconds": null
       },
-      "case_contract_hash": "02a1be28240941b5afa589b12d5ce2644f97204e446fc545332bdba57d916f66",
+      "case_contract_hash": "879a845b799732422a960bfba4182ed4f8028bb3266785820088a37712f3dd14",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_gdb_stale_nocontrol",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nocontrol",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "TRIGGER\n"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "state_paths": {
+            "session.status": "finished",
+            "session.session_id": "{{SESSION_ID}}",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": false,
+            "capabilities.rip_control": "no"
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "647ba77853c6ab6031cc5732a5b2d348ba924bb589c914194af3ad724f5b34f6",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_hex_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_HEX": "614130614131614132614133614134614135614136614137614138614139614230614231614232614233614234614235614236614237614238614239614330614331614332614333614334614335614336614337614338614339614430614431614432614433614434614435614436614437614438614439"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "hex-env",
+            "gdb.stdin_kind": "seeded_hex",
+            "dynamic_evidence.inputs[0].stdin_source": "hex-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_hex",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+            "dynamic_evidence.inputs[0].cyclic_span": 120,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "52a2d115630f16432c7b7776ea9da094dc1337037e0d8aaf0fb8e3770aeabcee",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_nocontrol",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nocontrol",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "TRIGGER\n"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": false,
+            "capabilities.rip_control": "no"
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "67a9fa3a302b37443a239ad037949a28728dda8431ee288b74200fa30517afc7",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_nonpie",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "text-env",
+            "gdb.stdin_kind": "seeded_text",
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_text",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "bdbfca8bd1f61366989cf3dccdb3c76b57ce3a3ae1dc7b364eb8cc4ad2539b7a",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_nonpie_cwd",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [
+          "--policy=policy/agent_l0_l2.yaml",
+          "--budget=policy/budget.yaml",
+          "--stage-contracts=policy/stage_contracts.yaml",
+          "--stage-runner=policy/stage_runner.yaml"
+        ],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "session.session_id": "{{SESSION_ID}}",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "text-env",
+            "gdb.stdin_kind": "seeded_text",
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_text",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "fd95a4f93db14ba9d411ae40acf989c2494222c3c7e31627c0b9fbaacee6db5b",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_nonpie_sendline",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_nonpie",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9\n"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "protections.pie": false,
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "latest_bases.pie_base": "0x400000",
+            "gdb.pie_base": "0x400000",
+            "gdb.pc_offset": "0x1170",
+            "gdb.stdin_source": "text-env",
+            "gdb.stdin_kind": "seeded_text",
+            "dynamic_evidence.inputs[0].stdin_source": "text-env",
+            "dynamic_evidence.inputs[0].kind": "seeded_text",
+            "dynamic_evidence.inputs[0].cyclic_compatible": true,
+            "dynamic_evidence.inputs[0].cyclic_window_len": 120,
+            "dynamic_evidence.inputs[0].cyclic_span": 120,
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "7a3e8d2c7062eda0536175cf7cc0a7a51c74a47a0314c1a1bbc280006d35cba0",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_offset",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_local_offset",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_TEXT": "aA0aA1aA2aA3aA4aA5aA6aA7aA8aA9aB0aB1aB2aB3aB4aB5aB6aB7aB8aB9aC0aC1aC2aC3aC4aC5aC6aC7aC8aC9aD0aD1aD2aD3aD4aD5aD6aD7aD8aD9"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.signal": "SIGSEGV",
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 88,
+            "latest_bases.offset_to_rip": 88,
+            "gdb.offset_to_rip": 88,
+            "dynamic_evidence.evidence[0].gdb.offset_to_rip": 88,
+            "dynamic_evidence.inputs[0].stdin_source": "text-env"
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb"
+        ]
+      },
+      "case_contract_hash": "486b7c827c394740558410ba2ec6e296deeb04b5790d0a824158e342e89073ce",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_local_ret2win_exploit",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_ret2win",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_ret2win/cyclic72.txt",
+          "DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING": "1"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.fault_offset_candidate": 65,
+            "gdb.static_offset_candidate": 72,
+            "capabilities.has_crash": true,
+            "capabilities.fault_offset_candidate": 65,
+            "capabilities.static_offset_candidate": 72,
+            "capabilities.ret2win_path_verified": true,
+            "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_ret2win/cyclic72.txt"
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence + local exploit plugin",
+            "local exploit plugin: on"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb",
+          "nm"
+        ]
+      },
+      "case_contract_hash": "704d26b4f64c3a30f916d3ab4c2e241cad7d2a0cb84403fb3139f4f74cdb3c70",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "exploit_l3",
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence",
+        "exploit_l3"
+      ]
+    },
+    {
+      "case_id": "demo_local_ret2win_symbols",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_ret2win",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_ret2win/cyclic72.txt"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence"
+          ],
+          "metrics_min": {
+            "runs_total": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "capabilities.has_crash": true,
+            "static_analysis.entrypoints[0].name": "win",
+            "static_analysis.entrypoints[1].name": "main",
+            "static_analysis.suspects[0].name": "win",
+            "static_analysis.stack_smash_offset_guess": 72,
+            "capabilities.static_offset_candidate": 72,
+            "dynamic_evidence.inputs[0].stdin_source": "file:challenge/bench_ret2win/cyclic72.txt"
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence fallback"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb",
+          "nm"
+        ]
+      },
+      "case_contract_hash": "0f4a0cb9c35b81ef3babb3de1d52a8d47d072f136279d45e60c7f3a99cf9faa6",
       "final_exit_code": 0,
       "acceptance_passed": true,
       "success_stages": [
