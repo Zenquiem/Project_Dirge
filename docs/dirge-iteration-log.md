@@ -419,3 +419,43 @@ This is not a giant solve-engine change, but it meaningfully improves exploit de
 
 - Re-run a stronger ret2win slice that exercises a second pass/rerun on the same session and confirm it now prefers the persisted `offset_to_rip` path over verify-time scanning.
 - If that holds, extend the same “capture discovered exploit facts instead of discarding them” pattern to other exploit families where local verify learns deterministic runtime facts.
+
+## 2026-03-13 13:58 CST — Made rerun exploit stubs consume persisted ret2win offset/alignment facts
+
+### What changed
+
+- Tightened `core/plugins/exploit_l3.py::generate_exp_stub()` so regenerated exploit templates no longer rely only on `capabilities.offset_to_rip`.
+- The shared stub now also consumes persisted verify-learned session facts when present:
+  - `session.exp.selected_offset`
+  - `session.exp.selected_align_ret`
+- For ret2win stubs this changes two concrete runtime contracts:
+  - `OFFSET_TO_RIP` now falls back to `selected_offset` when capability state is sparse or stale
+  - `_align_modes()` now honors persisted `selected_align_ret` before defaulting back to generic `auto/always/never` behavior
+- Added focused regression coverage in `tests/test_exploit_l3.py` proving regenerated stubs:
+  - reuse `selected_offset` as the primary offset when `capabilities.offset_to_rip` is missing
+  - reuse `selected_align_ret` to stay on the verified align branch instead of retrying the opposite branch first
+
+### Why it mattered
+
+The previous iteration taught local verify to *record* a real ret2win auto-hit, but one determinism seam remained in the shared exploit generation path:
+- reruns could still regenerate a template that only trusted top-level capability offset state
+- and align choice could drift back to generic x64 `auto => [True, False]` ordering even after verify had already proven `align=0` or `align=1`
+
+That meant some second-pass flows could still waste time rediscovering what local verify had already learned, especially on stripped-tool ret2win paths where these persisted facts are the main portable substitute for debugger evidence.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py -q` → `12 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit` → passes after the stub-regeneration change
+
+### Current interpretation
+
+This is a modest but real determinism improvement in the shared exploit core:
+- OpenClaw and host-side Codex-style runtimes both benefit because the reuse logic lives in common stub generation rather than a runtime-specific adapter
+- successful local verify now feeds a more reusable second-pass exploit template instead of only enriching the report/state for humans
+- the remaining validation gap is mostly orchestration-level proof, not missing shared-core support
+
+### Remaining follow-up
+
+- Add or script a same-session rerun proof that demonstrates the orchestration loop regenerates/uses the persisted ret2win facts end-to-end rather than only at the stub unit-contract level.
+- If that holds, generalize the same persisted-fact reuse pattern to other exploit families where local verify learns deterministic runtime choices.
