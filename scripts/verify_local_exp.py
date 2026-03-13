@@ -299,6 +299,27 @@ def _split_markers(raw: str) -> List[str]:
     return [x.strip() for x in str(raw or "").split(",") if x.strip()]
 
 
+def _extract_auto_offset_hit(run_detail: Dict[str, Any]) -> Dict[str, int]:
+    merged = f"{run_detail.get('stdout_tail','')}\n{run_detail.get('stderr_tail','')}"
+    matches = re.findall(r"\[auto-offset\]\s+hit=(0x[0-9a-fA-F]+|\d+)\s+align=(0x[0-9a-fA-F]+|\d+)", merged)
+    if not matches:
+        return {}
+    hit_raw, align_raw = matches[-1]
+    try:
+        hit = int(str(hit_raw), 0)
+    except Exception:
+        hit = 0
+    try:
+        align = int(str(align_raw), 0)
+    except Exception:
+        align = 0
+    out: Dict[str, int] = {}
+    if hit > 0:
+        out["offset_to_rip"] = int(hit)
+    out["align_ret"] = 1 if align else 0
+    return out
+
+
 def _sync_state_meta(session_id: str, state_path: str) -> Dict[str, Any]:
     sid = str(session_id or "").strip()
     if not sid or sid == "unknown":
@@ -873,6 +894,10 @@ def main() -> int:
         report_abs = os.path.join(ROOT_DIR, "artifacts", "reports", f"exp_verify_{sid}_{loop_suffix}.json")
     os.makedirs(os.path.dirname(report_abs), exist_ok=True)
 
+    auto_offset_hit = _extract_auto_offset_hit(run_detail) if args.run else {}
+    if auto_offset_hit:
+        run_detail["auto_offset_hit"] = auto_offset_hit
+
     report = {
         "generated_utc": utc_now(),
         "session_id": sid,
@@ -891,6 +916,7 @@ def main() -> int:
         "static_findings": static_findings,
         "run": run_detail,
         "run_env_defaults": run_env_defaults,
+        "auto_offset_hit": auto_offset_hit,
     }
     state_meta_sync: Dict[str, Any] = {"attempted": False, "ok": False}
     with open(report_abs, "w", encoding="utf-8") as f:
@@ -909,6 +935,13 @@ def main() -> int:
             if args.run and bool(run_result_ok):
                 caps = state.setdefault("capabilities", {})
                 caps["exploit_success"] = True
+                hit_off = int(auto_offset_hit.get("offset_to_rip", 0) or 0)
+                if hit_off > 0:
+                    caps["control_rip"] = True
+                    caps["offset_to_rip"] = int(hit_off)
+                    exp["selected_offset"] = int(hit_off)
+                if "align_ret" in auto_offset_hit:
+                    exp["selected_align_ret"] = int(auto_offset_hit.get("align_ret", 0) or 0)
         latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
         latest["exp_verify_report"] = repo_rel(report_abs)
         save_json(args.state, state)

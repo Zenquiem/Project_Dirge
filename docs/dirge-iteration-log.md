@@ -372,3 +372,50 @@ This change makes that route part of the benchmark contract without hard-binding
 - Now that the stripped-tool route is benchmarked, the next valuable seam is still exploit determinism rather than more benchmark plumbing:
   - reduce dependence on bounded local verify/offset bruteforce for recon-only ret2win success
   - promote stronger shared offset/control facts from recon/gdb evidence into exploit planning when evidence is good enough
+
+## 2026-03-13 13:31 CST — Persisted real auto-hit ret2win offsets from local verify instead of throwing them away
+
+### What changed
+
+- Fixed a concrete generated-stub bug in `core/plugins/exploit_l3.py`:
+  - successful verify-mode ret2win runs used to print
+    - `[auto-offset] hit={off} align={int(bool(align))}`
+    as a literal string because the generated f-string escaped the braces.
+  - the stub now prints the actual discovered values, e.g. `hit=72 align=1`.
+- Added `scripts/verify_local_exp.py::_extract_auto_offset_hit()`.
+  - verify reports now parse the real auto-hit line from runtime output and store it as `auto_offset_hit`.
+- Successful local verify now also projects that discovered hit back into state:
+  - `capabilities.control_rip=true`
+  - `capabilities.offset_to_rip=<hit>`
+  - `session.exp.selected_offset=<hit>`
+  - `session.exp.selected_align_ret=<0|1>`
+
+### Why it mattered
+
+The recent ret2win improvements made the recon-only no-gdb/no-codex route succeed, but one determinism seam remained:
+- success could still depend on verify-mode bounded offset scanning,
+- and even when that scan found the correct offset, the runtime mostly threw the discovery away.
+
+That meant future reruns still had to rediscover the same local offset rather than reusing a now-proven session fact.
+This was especially wasteful on the portable stripped-tool ret2win path, where the whole point is to preserve useful capability knowledge even without Codex or gdb.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py -q` → `10 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit` → passes
+- Fresh verify report now contains a real parsed hit instead of a dead literal placeholder:
+  - `artifacts/reports/exp_verify_bench_demo_nogdb_nocodex_ret2win_exploit_20260313T053054Z_01_01.json`
+  - `auto_offset_hit.offset_to_rip = 72`
+  - `auto_offset_hit.align_ret = 1`
+
+### Current interpretation
+
+This is not a giant solve-engine change, but it meaningfully improves exploit determinism and evidence retention:
+- the shared exploit core now keeps a proven offset discovered during local verify,
+- OpenClaw and host-side Codex-style runtimes both benefit because the behavior lives in the shared verify/report/state path,
+- and later reruns/autofix loops have a better chance of starting from `offset_to_rip` instead of re-bruteforcing a known-good ret2win offset.
+
+### Remaining follow-up
+
+- Re-run a stronger ret2win slice that exercises a second pass/rerun on the same session and confirm it now prefers the persisted `offset_to_rip` path over verify-time scanning.
+- If that holds, extend the same “capture discovered exploit facts instead of discarding them” pattern to other exploit families where local verify learns deterministic runtime facts.

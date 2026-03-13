@@ -44,5 +44,27 @@ class VerifyLocalExpPathResolutionTests(unittest.TestCase):
         self.assertTrue(abs_path.endswith("/artifacts/custom_exp.py"))
 
 
+class VerifyLocalExpAutoOffsetTests(unittest.TestCase):
+    def test_extract_auto_offset_hit_parses_numeric_hit_and_align(self):
+        run_detail = {
+            "stdout_tail": "noise\n[auto-offset] hit=72 align=1\nmore",
+            "stderr_tail": "",
+        }
+
+        parsed = verify_local_exp._extract_auto_offset_hit(run_detail)
+
+        self.assertEqual(parsed, {"offset_to_rip": 72, "align_ret": 1})
+
+    def test_extract_auto_offset_hit_ignores_old_literal_placeholder_output(self):
+        run_detail = {
+            "stdout_tail": "[auto-offset] hit={off} align={int(bool(align))}",
+            "stderr_tail": "",
+        }
+
+        parsed = verify_local_exp._extract_auto_offset_hit(run_detail)
+
+        self.assertEqual(parsed, {})
+
+
 if __name__ == "__main__":
     unittest.main()

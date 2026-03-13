@@ -145,6 +145,7 @@ Clarification guardrail:
   - `demo_direct_gdb_path_ret2win_exploit`
 - The true stripped-tool ret2win route is now benchmarked instead of only spot-checked: `demo_nogdb_nocodex_ret2win_exploit` uses replay-side `path_block_commands` to hide `gdb` / `gdb-mcp` / `codex` from PATH and keeps the portable `recon -> exploit_l3` route green with `exploit_success=true`.
 - The next valuable follow-up is to reduce remaining dependence on bounded local verify/bruteforce for recon-only ret2win cases by promoting more deterministic offset/control contracts from shared recon/gdb evidence into the exploit plan when available.
+- Local verify now also persists a real discovered ret2win auto-hit (`offset_to_rip`, align mode) back into verify reports/session state instead of discarding it; next step is to prove second-pass/rerun flows actually consume that persisted fact and avoid rediscovery.
 
 ## Update Rule
 When priorities materially change, update this file in a small, direct way.
