@@ -9,6 +9,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
+import shlex
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_CONFIG = os.path.join(ROOT_DIR, ".codex", "config.toml")
@@ -21,12 +22,16 @@ def utc_now() -> str:
 def _load_toml(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         return {}
+    loader = None
     try:
-        import tomllib  # type: ignore[attr-defined]
+        import tomllib as loader  # type: ignore[attr-defined]
     except Exception:
-        return {}
+        try:
+            import tomli as loader  # type: ignore[no-redef]
+        except Exception:
+            return {}
     with open(path, "rb") as f:
-        data = tomllib.load(f)
+        data = loader.load(f)
     return data if isinstance(data, dict) else {}
 
 
@@ -46,6 +51,11 @@ def _configured_servers(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
             "cwd": str(raw.get("cwd", "")).strip(),
             "env": raw.get("env", {}) if isinstance(raw.get("env", {}), dict) else {},
         }
+        if "startup_timeout_sec" in raw:
+            try:
+                item["startup_timeout_sec"] = float(raw.get("startup_timeout_sec", 0) or 0)
+            except Exception:
+                pass
         out.append(item)
     out.sort(key=lambda x: x["name"])
     return out
@@ -91,6 +101,9 @@ def _parse_server_names(stdout: str) -> Tuple[List[str], bool]:
     for line in txt.splitlines():
         s = line.strip().strip("-*").strip()
         if not s:
+            continue
+        low = s.lower()
+        if low.startswith("no mcp servers configured yet"):
             continue
         head = s.split()[0]
         if head and head[0].isalnum():
@@ -242,22 +255,143 @@ def _run_cmd(cmd: List[str], timeout_sec: float) -> Dict[str, Any]:
     }
 
 
+def _repo_anchor_path(raw: str) -> str:
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    if os.path.isabs(s) or "://" in s:
+        return s
+    return os.path.abspath(os.path.join(ROOT_DIR, s))
+
+
 def _resolve_command(cmd: str) -> Tuple[bool, str]:
     if not cmd:
         return False, ""
     if os.path.isabs(cmd):
-        return os.path.exists(cmd), cmd
+        return os.path.exists(cmd) and os.access(cmd, os.X_OK), cmd
+    if any(sep in cmd for sep in (os.sep, "/")):
+        anchored = _repo_anchor_path(cmd)
+        return os.path.exists(anchored) and os.access(anchored, os.X_OK), anchored
     found = shutil.which(cmd)
     if found:
         return True, found
-    if cmd == "codex":
+    if cmd in {"codex", "gdb-mcp", "pyghidra-mcp"}:
         for fb in [
-            os.path.expanduser("~/.npm-global/bin/codex"),
-            os.path.expanduser("~/.local/bin/codex"),
+            os.path.expanduser(f"~/.npm-global/bin/{cmd}"),
+            os.path.expanduser(f"~/.local/bin/{cmd}"),
         ]:
             if os.path.exists(fb) and os.access(fb, os.X_OK):
                 return True, fb
     return False, ""
+
+
+def _anchor_pathlike_value(raw: str, base_dir: str | None = None) -> str:
+    s = str(raw or "").strip()
+    if not s or os.path.isabs(s) or "://" in s:
+        return s
+    return os.path.abspath(os.path.join(base_dir or ROOT_DIR, s))
+
+
+def _normalize_command_string(raw: str) -> str:
+    parts = shlex.split(str(raw or ""))
+    if not parts:
+        return ""
+    out: List[str] = []
+    flag_takes_value = {"-W", "-X", "--check-hash-based-pycs", "-O"}
+    i = 0
+    while i < len(parts):
+        cur = parts[i]
+        out.append(cur)
+        if i == 0:
+            i += 1
+            continue
+        prev = parts[i - 1] if i > 0 else ""
+        if prev in flag_takes_value:
+            i += 1
+            continue
+        if cur in flag_takes_value and (i + 1) < len(parts):
+            out.append(parts[i + 1])
+            i += 2
+            continue
+        if cur == "-m" and (i + 1) < len(parts):
+            out.append(parts[i + 1])
+            i += 2
+            continue
+        if cur == "-S" and (i + 1) < len(parts):
+            payload_parts = shlex.split(parts[i + 1])
+            out.append(" ".join(_anchor_pathlike_value(tok, ROOT_DIR) if ((tok.startswith('./') or tok.startswith('../') or '/' in tok) and not os.path.isabs(tok)) else tok for tok in payload_parts))
+            i += 2
+            continue
+        if (cur.startswith("./") or cur.startswith("../") or "/" in cur) and not os.path.isabs(cur):
+            out[-1] = _anchor_pathlike_value(cur, ROOT_DIR)
+        i += 1
+    return " ".join(out)
+
+
+def _normalize_repo_relative_env_value(key: str, value: str) -> str:
+    pathlike_keys = {
+        "JAVA_HOME", "JDK_HOME", "CODEX_BIN", "CODEX_BIN_REAL", "CODEX_HOME", "CODEX_RUNTIME_HOME", "HOME",
+        "PWN_LOADER", "PWN_LIBC_PATH", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
+        "GHIDRA_MCP_HOME", "GHIDRA_MCP_XDG_CONFIG_HOME", "GHIDRA_MCP_XDG_CACHE_HOME", "GHIDRA_MCP_XDG_DATA_HOME",
+        "GDB_LAUNCHER_SCRIPT", "PYGHIDRA_LAUNCHER_SCRIPT", "DIRGE_GDB_EXTRA_SITE", "DIRGE_PYGHIDRA_EXTRA_SITE",
+        "GHIDRA_INSTALL_DIR", "GHIDRA_MCP_PROJECT_PATH", "GHIDRA_MCP_BIN", "GHIDRA_RUNTIME_ROOT", "GHIDRA_SESSION_ROOT",
+        "PYTHON_BIN", "MCP_JSONLINE_BRIDGE", "MCP_JSONLINE_BRIDGE_LOG", "PYGHIDRA_HOTFIX_DIR",
+    }
+    pathlist_keys = {"LD_LIBRARY_PATH", "PWN_LD_LIBRARY_PATH", "PYTHONPATH", "PYGHIDRA_MCP_PYTHONPATH", "PATH"}
+    norm_key = str(key or "").strip()
+    raw = str(value)
+    if norm_key in pathlike_keys:
+        return _anchor_pathlike_value(raw, ROOT_DIR)
+    if norm_key in pathlist_keys:
+        return os.pathsep.join(_anchor_pathlike_value(part, ROOT_DIR) if (part and ('/' in part or part.startswith('.'))) else part for part in raw.split(os.pathsep))
+    if norm_key in {"DIRGE_GDB_MCP_CMD", "DIRGE_PYGHIDRA_MCP_CMD"}:
+        return _normalize_command_string(raw)
+    return raw
+
+
+def _normalize_launcher_argv(command: str, args: List[Any]) -> tuple[str, List[str]]:
+    cmd = str(command or "").strip()
+    argv = [str(x) for x in (args or [])]
+    if not cmd:
+        return "", []
+    if any(sep in cmd for sep in (os.sep, "/")) and not os.path.isabs(cmd):
+        cmd = _repo_anchor_path(cmd)
+
+    script_flags = {"-W", "-X", "--check-hash-based-pycs", "-O"}
+    i = 0
+    while i < len(argv):
+        cur = argv[i]
+        if cur in {"-m", "-S"}:
+            i += 2
+            continue
+        if cur in script_flags:
+            i += 2
+            continue
+        if (cur.startswith("./") or cur.startswith("../") or "/" in cur) and not os.path.isabs(cur):
+            argv[i] = _repo_anchor_path(cur)
+        break
+    return cmd, argv
+
+
+def _resolve_server_launcher(server_name: str, server_cfg: Dict[str, Any]) -> Tuple[bool, str]:
+    name = str(server_name or server_cfg.get("name", "")).strip().lower()
+    cmd, argv = _normalize_launcher_argv(server_cfg.get("command", ""), server_cfg.get("args", []))
+    ok, resolved = _resolve_command(cmd)
+    if ok:
+        if name in {"pyghidra-mcp", "pyghidra_bridge"} and argv:
+            bridge = argv[0]
+            if (bridge.startswith("./") or bridge.startswith("../") or "/" in bridge) and not os.path.exists(bridge):
+                return False, resolved
+        return True, resolved
+    if name == "gdb":
+        fallback_ok, fallback = _resolve_command("gdb-mcp")
+        if fallback_ok:
+            return True, fallback
+    if name in {"pyghidra-mcp", "pyghidra_bridge"}:
+        fallback_ok, fallback = _resolve_command("pyghidra-mcp")
+        if fallback_ok:
+            return True, fallback
+    return False, resolved or cmd
 
 
 def _probe_tool_for_server(server_name: str) -> str:
@@ -368,9 +502,86 @@ def _remove_stale_project_locks(project_path: str, project_name: str) -> List[st
     return removed
 
 
+def _discover_java_home() -> Dict[str, Any]:
+    for cand in [os.environ.get("JAVA_HOME", ""), os.environ.get("JDK_HOME", ""), os.path.join(ROOT_DIR, ".tools", "jdk"), os.path.join(ROOT_DIR, ".tools", "java"), "/usr/lib/jvm"]:
+        if not cand:
+            continue
+        if os.path.isdir(cand) and os.path.basename(cand) in {"jdk", "java"}:
+            try:
+                children = sorted(os.listdir(cand), reverse=True)
+            except Exception:
+                children = []
+            for child in children:
+                path = os.path.join(cand, child)
+                if os.path.isfile(os.path.join(path, "bin", "java")):
+                    return {"path": path, "meets_min": True}
+        if os.path.isfile(os.path.join(cand, "bin", "java")):
+            return {"path": cand, "meets_min": True}
+    return {"path": "", "meets_min": False}
+
+
+def _normalize_server_env(env_cfg: Dict[str, Any], cwd: str) -> Dict[str, str]:
+    env = os.environ.copy()
+    path_keys = {
+        "CODEX_BIN", "CODEX_BIN_REAL", "CODEX_HOME", "CODEX_RUNTIME_HOME", "HOME",
+        "PWN_LOADER", "PWN_LIBC_PATH", "PWN_LD_LIBRARY_PATH", "XDG_CONFIG_HOME", "XDG_CACHE_HOME",
+        "XDG_DATA_HOME", "GHIDRA_MCP_HOME", "GHIDRA_MCP_XDG_CONFIG_HOME", "GHIDRA_MCP_XDG_CACHE_HOME",
+        "GHIDRA_MCP_XDG_DATA_HOME", "GDB_LAUNCHER_SCRIPT", "PYGHIDRA_LAUNCHER_SCRIPT",
+        "DIRGE_GDB_EXTRA_SITE", "DIRGE_PYGHIDRA_EXTRA_SITE", "GHIDRA_INSTALL_DIR",
+        "GHIDRA_MCP_PROJECT_PATH", "PYTHON_BIN", "MCP_JSONLINE_BRIDGE", "MCP_JSONLINE_BRIDGE_LOG",
+    }
+    for k, v in (env_cfg or {}).items():
+        key = str(k).strip()
+        if not key:
+            continue
+        val = _normalize_repo_relative_env_value(key, str(v)) if key in path_keys else str(v)
+        env[key] = val
+    return env
+
+
+def _run_gdb_cli_probe(server_cfg: Dict[str, Any], probe_timeout_sec: float, probe_label: str) -> Dict[str, Any]:
+    cmd, argv = _normalize_launcher_argv(server_cfg.get("command", ""), server_cfg.get("args", []))
+    ok, resolved = _resolve_server_launcher(probe_label, {**server_cfg, "command": cmd, "args": argv})
+    result = {"server": probe_label, "tool": "tools/list", "ok": False, "error": "", "rc": 127, "cmd": "", "stdout_tail": "", "stderr_tail": ""}
+    if not ok:
+        result["error"] = f"launcher unavailable: {cmd}"
+        return result
+    full_cmd = [resolved, *argv]
+    result["cmd"] = " ".join(full_cmd)
+    cwd = _anchor_pathlike_value(str(server_cfg.get("cwd", "") or ROOT_DIR), ROOT_DIR) or ROOT_DIR
+    env = _normalize_server_env(server_cfg.get("env", {}) if isinstance(server_cfg.get("env", {}), dict) else {}, cwd)
+    try:
+        p = subprocess.Popen(full_cmd, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        init = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}) + "\n"
+        tools = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}) + "\n"
+        stdout, stderr = p.communicate(init + tools, timeout=max(1.0, float(probe_timeout_sec)))
+    except subprocess.TimeoutExpired:
+        try:
+            p.kill()
+        except Exception:
+            pass
+        result["rc"] = 124
+        result["error"] = "timeout"
+        return result
+    except Exception as e:
+        result["error"] = str(e)
+        return result
+    result["rc"] = int(p.returncode or 0)
+    result["stdout_tail"] = (stdout or "")[-1000:]
+    result["stderr_tail"] = (stderr or "")[-1000:]
+    if p.returncode != 0:
+        result["error"] = f"mcp process exited unexpectedly: rc={p.returncode}"
+        return result
+    if '"id": 1' not in stdout or '"id": 2' not in stdout:
+        result["error"] = "mcp initialize/tools handshake incomplete"
+        return result
+    result["ok"] = True
+    return result
+
+
 def _run_pyghidra_cli_probe(server_cfg: Dict[str, Any], probe_timeout_sec: float, probe_label: str) -> Dict[str, Any]:
-    cmd_raw = str(server_cfg.get("command", "")).strip()
-    cmd_ok, cmd_resolved = _resolve_command(cmd_raw)
+    cmd, argv = _normalize_launcher_argv(server_cfg.get("command", ""), server_cfg.get("args", []))
+    cmd_ok, cmd_resolved = _resolve_server_launcher(probe_label, {**server_cfg, "command": cmd, "args": argv})
     result: Dict[str, Any] = {
         "server": probe_label,
         "tool": "list_project_binaries",
@@ -382,17 +593,18 @@ def _run_pyghidra_cli_probe(server_cfg: Dict[str, Any], probe_timeout_sec: float
         "stderr_tail": "",
     }
     if not cmd_ok:
-        result["error"] = f"launcher unavailable: {cmd_raw}"
+        result["error"] = f"launcher unavailable: {cmd}"
         return result
 
-    args = server_cfg.get("args", []) if isinstance(server_cfg.get("args", []), list) else []
-    probe_cmd_prefix: List[str] = [cmd_resolved or cmd_raw]
-    probe_arg_scan = [str(x) for x in args]
-
-    # 支持 jsonline bridge 形式:
-    # command=python3 args=[bridge.py, "--", pyghidra-mcp, --project-path ...]
+    probe_cmd_prefix: List[str] = [cmd_resolved or cmd]
+    probe_arg_scan = list(argv)
     if "--" in probe_arg_scan:
         idx = probe_arg_scan.index("--")
+        if idx > 0:
+            bridge = probe_arg_scan[0]
+            if (bridge.startswith("./") or bridge.startswith("../") or "/" in bridge) and not os.path.exists(bridge):
+                result["error"] = f"bridge missing: {bridge}"
+                return result
         if (idx + 1) < len(probe_arg_scan):
             inner_cmd_raw = str(probe_arg_scan[idx + 1] or "").strip()
             inner_ok, inner_resolved = _resolve_command(inner_cmd_raw)
@@ -400,30 +612,25 @@ def _run_pyghidra_cli_probe(server_cfg: Dict[str, Any], probe_timeout_sec: float
                 probe_cmd_prefix = [inner_resolved or inner_cmd_raw]
                 probe_arg_scan = probe_arg_scan[idx + 2 :]
 
+    cwd = _anchor_pathlike_value(str(server_cfg.get("cwd", "") or ROOT_DIR), ROOT_DIR) or ROOT_DIR
     env_cfg = server_cfg.get("env", {}) if isinstance(server_cfg.get("env", {}), dict) else {}
-    cwd = str(server_cfg.get("cwd", "")).strip()
-    if not cwd:
-        cwd = ROOT_DIR
-    elif not os.path.isabs(cwd):
-        cwd = os.path.abspath(os.path.join(ROOT_DIR, cwd))
+    env = _normalize_server_env(env_cfg, cwd)
 
-    project_path = _extract_arg_value(
-        probe_arg_scan,
-        "--project-path",
-        str(env_cfg.get("GHIDRA_MCP_PROJECT_PATH", "")).strip(),
-    )
-    project_name = _extract_arg_value(
-        probe_arg_scan,
-        "--project-name",
-        str(env_cfg.get("GHIDRA_MCP_PROJECT_NAME", "")).strip() or "my_project",
-    )
-    # 会话级环境优先，避免沿用静态 config 里的旧 project 路径。
+    project_path = _extract_arg_value(probe_arg_scan, "--project-path", str(env.get("GHIDRA_MCP_PROJECT_PATH", "")).strip())
+    project_name = _extract_arg_value(probe_arg_scan, "--project-name", str(env.get("GHIDRA_MCP_PROJECT_NAME", "")).strip() or "my_project")
     env_project_path = str(os.environ.get("GHIDRA_MCP_PROJECT_PATH", "")).strip()
     env_project_name = str(os.environ.get("GHIDRA_MCP_PROJECT_NAME", "")).strip()
     if env_project_path:
         project_path = env_project_path
     if env_project_name:
         project_name = env_project_name
+    project_path = _anchor_pathlike_value(project_path, ROOT_DIR)
+
+    java = _discover_java_home()
+    result["java"] = java
+    if java.get("path"):
+        env["JAVA_HOME"] = str(java["path"])
+        env["JDK_HOME"] = str(java["path"])
 
     probe_cmd = list(probe_cmd_prefix)
     if len(probe_arg_scan) >= 2 and probe_arg_scan[0] == "-m":
@@ -435,12 +642,6 @@ def _run_pyghidra_cli_probe(server_cfg: Dict[str, Any], probe_timeout_sec: float
     probe_cmd.append("--list-project-binaries")
     result["cmd"] = " ".join(probe_cmd)
 
-    env = os.environ.copy()
-    for k, v in env_cfg.items():
-        key = str(k).strip()
-        if not key:
-            continue
-        env[key] = str(v)
     env["JAVA_TOOL_OPTIONS"] = _merge_java_tool_opts(env.get("JAVA_TOOL_OPTIONS", ""), "-Djava.awt.headless=true")
     env.setdefault("DISPLAY", "")
 
@@ -448,16 +649,9 @@ def _run_pyghidra_cli_probe(server_cfg: Dict[str, Any], probe_timeout_sec: float
     if removed_locks:
         result["removed_locks"] = removed_locks
 
+    timeout = max(3.0, float(probe_timeout_sec), float(server_cfg.get("startup_timeout_sec", 0) or 0))
     try:
-        p = subprocess.run(
-            probe_cmd,
-            cwd=cwd,
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=max(3.0, float(probe_timeout_sec)),
-        )
+        p = subprocess.run(probe_cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False, timeout=timeout)
     except subprocess.TimeoutExpired as e:
         result["rc"] = 124
         result["error"] = f"timeout: {e}"
@@ -493,8 +687,9 @@ def main() -> int:
     ap.add_argument(
         "--functional-probe",
         action="store_true",
-        help="run minimal functional probe via codex tool call (pyghidra/gdb)",
+        help="run minimal functional probe via server launcher (pyghidra/gdb)",
     )
+    ap.add_argument("--no-functional-probe", action="store_true")
     ap.add_argument("--probe-timeout-sec", type=float, default=12.0)
     ap.add_argument("--probe-servers", default="", help="comma-separated server names for functional probe")
     ap.add_argument(
@@ -506,6 +701,8 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="only print json result")
     args = ap.parse_args()
 
+    args.config = _anchor_pathlike_value(args.config, ROOT_DIR) or DEFAULT_CONFIG
+    args.codex_bin = _anchor_pathlike_value(args.codex_bin, ROOT_DIR) or args.codex_bin
     cfg = _load_toml(args.config)
     servers = _configured_servers(cfg)
     enabled_names = [s["name"] for s in servers if s.get("enabled")]
@@ -576,7 +773,7 @@ def main() -> int:
     for srv in servers:
         name = str(srv.get("name", "")).strip()
         cmd = str(srv.get("command", "")).strip()
-        cmd_ok, cmd_resolved = _resolve_command(cmd)
+        cmd_ok, cmd_resolved = _resolve_server_launcher(name, srv)
         enabled = bool(srv.get("enabled", True))
         required = name in required_set
         listed = name in listed_set if listed_names else False
@@ -623,7 +820,7 @@ def main() -> int:
     if launcher_missing:
         unhealthy_reasons.append(f"required server launcher missing: {','.join(launcher_missing)}")
 
-    probe_enabled = bool(args.functional_probe)
+    probe_enabled = (not bool(args.no_functional_probe)) and (bool(args.functional_probe) or authority == "project_config")
     probe_timeout_sec = max(3.0, float(args.probe_timeout_sec or 12.0))
     probe_names = [x.strip() for x in str(args.probe_servers or "").split(",") if x.strip()]
     if not probe_names:
@@ -664,15 +861,14 @@ def main() -> int:
                     probe_failures.append(f"{name}.{tool_name}: {item.get('error', 'probe failed')}")
                 continue
 
-            probe_results.append(
-                {
-                    "server": name,
-                    "tool": tool_name,
-                    "ok": False,
-                    "skipped": True,
-                    "error": "functional probe not implemented for this server",
-                }
-            )
+            srv_cfg = _find_server_cfg(servers, name)
+            if not srv_cfg:
+                item = {"server": name, "tool": tool_name, "ok": False, "error": "server config not found for gdb probe"}
+            else:
+                item = _run_gdb_cli_probe(server_cfg=srv_cfg, probe_timeout_sec=probe_timeout_sec, probe_label=name)
+            probe_results.append(item)
+            if not bool(item.get("ok", False)):
+                probe_failures.append(f"{name}.{tool_name}: {item.get('error', 'probe failed')}")
 
     if probe_failures:
         msg = "functional probe failed: " + "; ".join(probe_failures[:3])

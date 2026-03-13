@@ -72,6 +72,9 @@ class CodexCLIAdapter(MCPAdapter):
             ("failed to load configuration", "codex config load failed"),
             ("unable to lock project", "ghidra project lock"),
             ("lockexception", "ghidra project lock"),
+            ("401 unauthorized", "codex auth unavailable"),
+            ("missing bearer or basic authentication", "codex auth unavailable"),
+            ("invalid api key", "codex auth unavailable"),
         ]
         hits: List[str] = []
         for needle, tag in needles:

@@ -52,6 +52,35 @@ if [[ "$resolve_bin_ok" -ne 1 ]]; then
   done
 fi
 
+resolve_input_path() {
+  local raw="${1:-}"
+  local prefer_challenge="${2:-0}"
+  local challenge_base="${3:-}"
+  python3 - "$ROOT_DIR" "$PWD" "$raw" "$prefer_challenge" "$challenge_base" <<'PY'
+import os, sys
+root, pwd, raw, prefer_challenge, challenge_base = sys.argv[1:]
+if not raw:
+    print("")
+    raise SystemExit(0)
+if os.path.isabs(raw):
+    print(os.path.abspath(raw))
+    raise SystemExit(0)
+candidates = [os.path.abspath(os.path.join(pwd, raw))]
+if prefer_challenge == "1" and challenge_base:
+    candidates.append(os.path.abspath(os.path.join(challenge_base, raw)))
+candidates.append(os.path.abspath(os.path.join(root, raw)))
+seen = set()
+for cand in candidates:
+    if cand in seen:
+        continue
+    seen.add(cand)
+    if os.path.exists(cand):
+        print(cand)
+        raise SystemExit(0)
+print(candidates[-1])
+PY
+}
+
 usage(){
   cat <<USAGE
 Usage:
@@ -83,9 +112,13 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --challenge-dir) CHALLENGE_DIR="${2:-}"; shift 2 ;;
+    --challenge-dir=*) CHALLENGE_DIR="${1#*=}"; shift ;;
     --binary) BINARY_PATH="${2:-}"; shift 2 ;;
+    --binary=*) BINARY_PATH="${1#*=}"; shift ;;
     --session-id) SESSION_ID="${2:-}"; shift 2 ;;
+    --session-id=*) SESSION_ID="${1#*=}"; shift ;;
     --name) SESSION_NAME="${2:-}"; shift 2 ;;
+    --name=*) SESSION_NAME="${1#*=}"; shift ;;
     --no-codex) START_CODEX=0; AUTO_SOLVE=0; shift ;;
     --no-auto-solve) AUTO_SOLVE=0; shift ;;
     --foreground-solve) FOREGROUND_SOLVE=1; AUTO_SOLVE=1; START_CODEX=1; shift ;;
@@ -93,7 +126,9 @@ while [[ $# -gt 0 ]]; do
     --no-exp) ENABLE_EXP=0; shift ;;
     --no-reset) DO_RESET=0; shift ;;
     --prompt) USER_PROMPT="${2:-}"; shift 2 ;;
+    --prompt=*) USER_PROMPT="${1#*=}"; shift ;;
     --prompt-file) USER_PROMPT_FILE="${2:-}"; shift 2 ;;
+    --prompt-file=*) USER_PROMPT_FILE="${1#*=}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown arg: $1" ;;
   esac
@@ -113,6 +148,7 @@ if [[ "$INTERACTIVE_CODEX" -eq 1 && "$FOREGROUND_SOLVE" -eq 1 ]]; then
 fi
 
 [[ -n "$CHALLENGE_DIR" ]] || die "--challenge-dir is required"
+CHALLENGE_DIR="$(resolve_input_path "$CHALLENGE_DIR")"
 [[ -d "$CHALLENGE_DIR" ]] || die "challenge dir not found: $CHALLENGE_DIR"
 [[ -f "$RESET_SCRIPT" ]] || die "missing reset script: $RESET_SCRIPT"
 [[ -f "$STATE_FILE" ]] || die "missing state file: $STATE_FILE"
@@ -121,6 +157,7 @@ if [[ -n "$USER_PROMPT" && -n "$USER_PROMPT_FILE" ]]; then
   die "--prompt and --prompt-file are mutually exclusive"
 fi
 if [[ -n "$USER_PROMPT_FILE" ]]; then
+  USER_PROMPT_FILE="$(resolve_input_path "$USER_PROMPT_FILE" 1 "$CHALLENGE_DIR")"
   [[ -f "$USER_PROMPT_FILE" ]] || die "prompt file not found: $USER_PROMPT_FILE"
 fi
 
