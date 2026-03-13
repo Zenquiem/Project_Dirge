@@ -102,3 +102,96 @@ One plausible cause was that the planner failed to recognize a valid local binar
 
 - This fixes one concrete classification seam, but the full end-to-end no-gdb/no-codex runtime path is still not benchmark-enforced yet.
 - Next useful step is a replayable or scripted run that proves the real runtime now reaches `local_recon_exploit` (or another intended degraded plan) under stripped tool availability, not just the planner helper in isolation.
+
+## 2026-03-13 10:36 CST — Reinserted recon for terminal-only no-gdb/no-codex helper plans; deeper runtime seam still present
+
+### What changed
+
+- Relaxed `scripts/run_session.py::choose_missing_codex_stage_order()` so local missing-Codex fallback no longer requires the incoming stage order to already contain `recon` before it can choose a portable local route.
+- This means terminal-heavy/cached plans like `['exploit_l4']` can now still degrade to `['recon', 'exploit_l3']` when:
+  - a real local binary exists,
+  - `DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING=1`,
+  - and no usable local/direct gdb path is available.
+- Added regression coverage in `tests/test_run_session_missing_codex.py` for that exact terminal-only case.
+
+### Why it mattered
+
+A real stripped-PATH run can arrive at missing-Codex handling after runtime heuristics/cache pressure have already collapsed the live plan toward exploit-only stages.
+The old helper logic silently refused portable local fallback in that situation because it insisted `recon` already be present in the incoming order.
+That was too brittle for host-like degraded runtime paths.
+
+### Verification
+
+- `python3 -m pytest tests/test_run_session_missing_codex.py -q` → `33 passed`
+- Direct helper spot-check with current saved state now returns `(['recon', 'exploit_l3'], 'local_recon_exploit')` even for incoming stage orders like:
+  - `['exploit_l4']`
+  - `['exploit_l3', 'exploit_l4']`
+
+### Real-runtime validation result
+
+A fresh scripted stripped-PATH run (symlink farm PATH excluding `gdb`, `gdb-mcp`, and `codex`) against `challenge/bench_ret2win` showed partial improvement but also exposed a deeper seam:
+
+- `start_session.sh --no-codex` succeeded under the stripped PATH.
+- `run_session.py --allow-codex-missing` now really executed `recon` before exploit stages, instead of staying fully exploit-only.
+- But the live run still logged:
+  - `codex 缺失，但保持完整 stage plan（失败后继续由策略层处理）`
+- and still continued into `exploit_l4`, ending with repeated:
+  - `exploit_l3 失败，但继续推进到 exploit_l4`
+
+Observed live stage sequence in that stripped-tool run:
+- loop 1: `recon -> exploit_l3 -> exploit_l4`
+- loop 2: `recon -> exploit_l3 -> exploit_l4`
+
+### Current interpretation
+
+The planner helper itself is now capable of the intended `local_recon_exploit` degradation on the saved state, but the full runtime path is still not consistently surfacing that planner decision in the live orchestration layer.
+This suggests another seam remains around pre-call stage-order mutation, runtime note/report selection, or post-planner exploit rewrite/terminal forcing.
+
+### Next useful follow-up
+
+- Trace why the live stripped-PATH route still emits the `keep_full_plan` note even though the helper now resolves the same saved state to `local_recon_exploit`.
+- Then add a replayable or scripted regression that locks the real runtime contract to the intended no-gdb/no-codex route.
+
+## 2026-03-13 11:01 CST — Fixed missing `local_recon_exploit` orchestration branch; stripped-PATH runtime now degrades to `recon -> exploit_l3`
+
+### What changed
+
+- Fixed the main missing-Codex handling branch in `scripts/run_session.py` so the planner result `local_recon_exploit` is handled explicitly instead of falling through to the generic `keep_full_plan` path.
+- The new branch now applies the same runtime-policy adjustments as the other portable local fallback modes:
+  - emit plan notes,
+  - keep local exploit enabled,
+  - clear terminal-stage forcing,
+  - disable exploit-rewrite extra-loop machinery for this degraded path,
+  - and defer objective stop until the local exploit stage gets one real run.
+
+### Why it mattered
+
+The earlier helper fixes were real, but the live stripped-PATH runtime still kept going to `exploit_l4` because the orchestrator never had a case for `local_recon_exploit`.
+That meant:
+- `choose_missing_codex_stage_order()` correctly returned `(['recon', 'exploit_l3'], 'local_recon_exploit')`,
+- but the outer runtime handler treated it like an unknown plan,
+- logged `codex 缺失，但保持完整 stage plan（失败后继续由策略层处理）`,
+- and preserved the terminal exploit forcing that reintroduced `exploit_l4`.
+
+### Verification
+
+- `python3 -m pytest tests/test_run_session_missing_codex.py -q` → `33 passed`
+- Direct helper spot-check under stripped PATH still returns:
+  - `(['recon', 'exploit_l3'], 'local_recon_exploit')`
+- Fresh scripted stripped-PATH runtime validation against `challenge/bench_ret2win` now shows the intended degraded live contract:
+  - decision report stage plan: `['recon', 'exploit_l3']`
+  - session summary notes include:
+    - `codex missing: prefer portable local recon + local exploit plugin`
+    - `direct gdb probe: off`
+    - `gdb evidence unavailable: exploit after recon`
+    - `local exploit plugin: on`
+  - timeline contains only:
+    - loop 1: `recon -> exploit_l3`
+  - `exploit_l4` is no longer executed on that stripped-tool path.
+
+### Remaining follow-up
+
+- The routing bug is fixed; the next seam is exploit quality on the true no-gdb/no-codex path.
+- In the fresh stripped-PATH validation, `exploit_l3` still failed local verify with:
+  - `autofix skipped: missing prerequisites (evidence=0, pie_base=no)`
+- Next useful step is to improve the recon-only ret2win/no-gdb exploit path so it can use static recon artifacts more effectively instead of stalling on missing dynamic-evidence prerequisites.

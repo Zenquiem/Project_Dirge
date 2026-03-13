@@ -2099,7 +2099,7 @@ def choose_missing_codex_stage_order(
         binary_rel = str(challenge.get("binary_path", "")).strip()
         binary_abs = _resolve_state_relative_path(state_path, binary_rel)
         has_local_binary = bool(binary_rel and binary_abs and os.path.isfile(binary_abs))
-        if has_local_binary and ("recon" in ordered):
+        if has_local_binary:
             prefer_local_gdb = bool(os.environ.get("DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING", "").strip() == "1")
             allow_local_exploit = bool(os.environ.get("DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING", "").strip() == "1")
             has_gdb_seed = any(
@@ -7342,6 +7342,23 @@ def main() -> int:
                     loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
                 elif missing_codex_plan == "local_recon_direct_gdb_exploit":
                     notes.append("codex missing: prefer portable local recon + direct gdb probe + local exploit plugin")
+                    notes.extend(describe_missing_codex_plan_notes(missing_codex_plan, fast_mode=fast_mode))
+                    enable_exploit = True
+                    objective_stop_deferred_for_pending_exploit = should_defer_objective_stop_for_missing_codex_plan(
+                        missing_codex_plan,
+                        enable_exploit=enable_exploit,
+                        stage_order=stage_order,
+                    )
+                    if objective_stop_deferred_for_pending_exploit:
+                        notes.append("objective stop: defer until local no-codex exploit stage gets a run")
+                    force_terminal_stage = False
+                    terminal_stage = ""
+                    exploit_rewrite_enabled = False
+                    exploit_rewrite_until_success = False
+                    exploit_rewrite_extra_loops = 0
+                    loop_end = min(loop_end, int(loop_start) + max(1, int(base_max_loops or 0)))
+                elif missing_codex_plan == "local_recon_exploit":
+                    notes.append("codex missing: prefer portable local recon + local exploit plugin")
                     notes.extend(describe_missing_codex_plan_notes(missing_codex_plan, fast_mode=fast_mode))
                     enable_exploit = True
                     objective_stop_deferred_for_pending_exploit = should_defer_objective_stop_for_missing_codex_plan(

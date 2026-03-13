@@ -416,6 +416,34 @@ class RunSessionMissingCodexStagePlanTests(unittest.TestCase):
             self.assertEqual(stage_order, ["recon", "exploit_l3"])
             self.assertEqual(mode, "local_recon_exploit")
 
+    def test_choose_missing_codex_stage_order_reinserts_recon_for_terminal_only_local_exploit_fallback(self):
+        with tempfile.TemporaryDirectory() as td:
+            state_path = os.path.join(td, "state.json")
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump({"challenge": {"binary_path": "/bin/ls"}}, f)
+
+            def fake_which(name: str) -> str | None:
+                if name in {"gdb", "gdb-mcp"}:
+                    return None
+                return None
+
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+                    "DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING": "1",
+                },
+                clear=False,
+            ), mock.patch("scripts.run_session.shutil.which", side_effect=fake_which):
+                stage_order, mode = choose_missing_codex_stage_order(
+                    stage_order=["exploit_l4"],
+                    state_path=state_path,
+                    terminal_stage="exploit_l4",
+                )
+
+            self.assertEqual(stage_order, ["recon", "exploit_l3"])
+            self.assertEqual(mode, "local_recon_exploit")
+
 
 class RunSessionMissingCodexPlanNoteTests(unittest.TestCase):
     def test_local_recon_gdb_notes_expose_disabled_direct_probe_in_fast_mode(self):
