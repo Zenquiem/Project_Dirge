@@ -459,3 +459,46 @@ This is a modest but real determinism improvement in the shared exploit core:
 
 - Add or script a same-session rerun proof that demonstrates the orchestration loop regenerates/uses the persisted ret2win facts end-to-end rather than only at the stub unit-contract level.
 - If that holds, generalize the same persisted-fact reuse pattern to other exploit families where local verify learns deterministic runtime choices.
+
+## 2026-03-13 15:00 CST — Closed the verify-sync seam that could drop learned ret2win rerun facts
+
+### What changed
+
+- Patched `scripts/session_exploit_runtime.py::sync_exp_verify_artifacts()` so verify-report synchronization now also projects deterministic ret2win facts learned during local verify, not just the coarse pass/fail bit.
+- When a verify report contains `auto_offset_hit` and `run_result_ok=true`, sync now carries back into the owning session state:
+  - `capabilities.control_rip=true`
+  - `capabilities.offset_to_rip=<hit>`
+  - `session.exp.selected_offset=<hit>`
+  - `session.exp.selected_align_ret=<0|1>`
+- Added a stronger integration test in `tests/test_session_exploit_runtime.py` that covers the host/OpenClaw-shared edge case where the main shared `state/state.json` belongs to another session and the current session must sync verify results from a report + base-state snapshot.
+- That new test then regenerates `sessions/<sid>/exp/exp.py` from the synced state and proves the ret2win stub reuses the synchronized facts directly (`OFFSET_TO_RIP=72`, `_offset_candidates() -> [72]`, `_align_modes() -> [True]`) instead of reopening bounded rediscovery.
+
+### Why it mattered
+
+The previous two iterations fixed only half of the determinism chain:
+- local verify could discover and record a real auto-hit offset/alignment
+- regenerated stubs could reuse persisted `selected_offset` / `selected_align_ret`
+
+But a real orchestration seam remained when verify ran against a temp snapshot or when shared state drifted to another session:
+- `verify_local_exp.py` wrote `auto_offset_hit` into the report and into the state it directly touched
+- `sync_exp_verify_artifacts()` only synchronized `local_verify_passed`, report path, and `exploit_success`
+- so the precise rerun facts could still be lost before the owning session regenerated its next stub
+
+That would have left OpenClaw and host-style orchestration more dependent on accidental same-file state ownership than on the intended shared report/state contract.
+
+### Verification
+
+- `python3 -m pytest tests/test_session_exploit_runtime.py tests/test_exploit_l3.py tests/test_verify_local_exp.py -q` → `14 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit` → passes
+
+### Current interpretation
+
+This closes the specific rerun-proof gap called out in the last iteration:
+- same-session ret2win rerun facts now survive the verify-report sync boundary,
+- regenerated exploit templates can deterministically stay on the proven offset/alignment branch,
+- and the fix lives in shared orchestration/state-sync code rather than an OpenClaw-only or Codex-only adapter.
+
+### Remaining follow-up
+
+- Move from ret2win-specific deterministic fact retention toward other exploit families where verify learns reusable runtime choices.
+- Look for the next real challenge-like seam where shared evidence can be promoted into exploit planning before bounded verify/bruteforce is needed.
