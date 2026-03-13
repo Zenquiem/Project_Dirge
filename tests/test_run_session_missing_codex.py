@@ -17,11 +17,13 @@ from scripts.run_session import (
     _derive_verify_success_markers,
     _select_local_gdb_stdin,
     adjust_loop_budget_for_missing_codex,
+    apply_stage_cache,
     choose_missing_codex_stage_order,
     describe_missing_codex_plan_notes,
     maybe_prepare_remote_prompt,
     run_local_gdb_fallback,
     run_local_recon_fallback,
+    save_stage_cache,
     should_defer_objective_stop_for_missing_codex_plan,
 )
 
@@ -40,6 +42,38 @@ class RunSessionVerifyMarkerDerivationTests(unittest.TestCase):
             }
             markers = _derive_verify_success_markers(state)
         self.assertIn("DIRGE_RET2WIN_OK", markers)
+
+
+class RunSessionReconStageCacheTests(unittest.TestCase):
+    def test_recon_stage_cache_preserves_ret2win_static_hints_for_later_exploit_generation(self):
+        binary_sha256 = "abc123reconcache"
+        state = {
+            "protections": {"arch": "amd64", "pie": False},
+            "io_profile": {"mode": "stdio"},
+            "static_analysis": {
+                "entrypoints": [{"name": "main", "addr": "0x401176"}],
+                "suspects": [{"name": "win", "type": "ret2win", "addr": "0x401156"}],
+                "hypotheses": [{"name": "win", "type": "ret2win", "verified": False}],
+                "stack_smash_offset_guess": 72,
+            },
+            "capabilities": {"static_offset_candidate": 72},
+        }
+        cache_rel = save_stage_cache("recon", state, binary_sha256)
+        self.assertTrue(cache_rel)
+
+        restored = {
+            "protections": {"arch": "amd64", "pie": False},
+            "io_profile": {},
+            "static_analysis": {"entrypoints": [], "suspects": [], "hypotheses": []},
+            "capabilities": {},
+        }
+        applied, applied_rel = apply_stage_cache("recon", restored, binary_sha256)
+        self.assertTrue(applied)
+        self.assertEqual(cache_rel, applied_rel)
+        self.assertEqual(72, restored.get("capabilities", {}).get("static_offset_candidate"))
+        suspects = restored.get("static_analysis", {}).get("suspects", [])
+        self.assertEqual("win", suspects[0].get("name"))
+        self.assertEqual("0x401156", suspects[0].get("addr"))
 
 
 class RunSessionMissingCodexLoopBudgetTests(unittest.TestCase):

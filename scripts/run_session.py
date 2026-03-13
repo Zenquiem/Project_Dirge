@@ -1109,10 +1109,18 @@ def apply_exploit_profile_cache(state: Dict[str, Any], binary_sha256: str, overw
 
 def extract_stage_cache_patch(stage: str, state: Dict[str, Any]) -> Dict[str, Any]:
     if stage == "recon":
-        return {
+        static = state.get("static_analysis", {}) if isinstance(state.get("static_analysis", {}), dict) else {}
+        caps = state.get("capabilities", {}) if isinstance(state.get("capabilities", {}), dict) else {}
+        patch: Dict[str, Any] = {
             "protections": state.get("protections", {}),
             "io_profile": state.get("io_profile", {}),
         }
+        if static:
+            patch["static_analysis"] = static
+        static_offset_candidate = int(caps.get("static_offset_candidate", 0) or 0)
+        if static_offset_candidate > 0:
+            patch["capabilities"] = {"static_offset_candidate": static_offset_candidate}
+        return patch
     if stage == "ida_slice":
         static = state.get("static_analysis", {}) if isinstance(state.get("static_analysis", {}), dict) else {}
         return {

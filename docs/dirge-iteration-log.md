@@ -195,3 +195,135 @@ That meant:
 - In the fresh stripped-PATH validation, `exploit_l3` still failed local verify with:
   - `autofix skipped: missing prerequisites (evidence=0, pie_base=no)`
 - Next useful step is to improve the recon-only ret2win/no-gdb exploit path so it can use static recon artifacts more effectively instead of stalling on missing dynamic-evidence prerequisites.
+
+## 2026-03-13 11:24 CST — Fixed recon stage-cache loss of ret2win-facing static facts
+
+### What changed
+
+- Expanded `scripts/run_session.py::extract_stage_cache_patch()` for `stage == "recon"`.
+- Recon cache entries no longer preserve only:
+  - `protections`
+  - `io_profile`
+- They now also carry the portable static facts that matter for no-gdb/no-codex ret2win generation:
+  - `static_analysis`
+  - `capabilities.static_offset_candidate` (when present)
+- Added regression coverage in `tests/test_run_session_missing_codex.py` proving a recon cache round-trip preserves those hints.
+
+### Why it mattered
+
+While inspecting the latest stripped-PATH no-gdb/no-codex failure state, the generated exploit had already regressed to:
+- `strategy: fuzz_probe`
+- `RET2WIN_ADDR = 0`
+- `STATIC_OFFSET_CANDIDATE = 0`
+
+That was inconsistent with the stronger local recon path already implemented for ret2win binaries.
+The root cause was not only exploit verify logic: on a recon cache hit, the state could silently lose the exact portable recon facts that should have driven `exploit_l3` into a static ret2win plan.
+So the degraded path was weaker than intended even before verify/autofix logic had a chance to help.
+
+### Verification
+
+- `python3 -m pytest tests/test_run_session_missing_codex.py -q` → `34 passed`
+- Spot-check with `PYTHONPATH="$PWD:$PWD/scripts" python3 - <<'PY' ...`:
+  - saved a synthetic recon cache carrying ret2win symbol/offset hints
+  - restored a fresh state via `apply_stage_cache("recon", ...)`
+  - generated an exploit stub from that restored state
+  - observed `{"strategy": "ret2win", "written": true}`
+
+### Current interpretation
+
+The true no-gdb/no-codex seam is now narrower and more honest:
+- before this fix, cache-hit runs could drop ret2win-static recon knowledge and fail from a degraded `fuzz_probe` starting point
+- after this fix, recon cache reuse should preserve the portable facts needed for ret2win-oriented `exploit_l3` generation across both OpenClaw and host-side Codex-style entry flows
+
+### Remaining follow-up
+
+- Re-run the stripped-PATH real runtime validation against `challenge/bench_ret2win`.
+- If it still fails, the remaining issue is more likely in exploit execution / local verify policy than in recon-state retention.
+
+## 2026-03-13 12:05 CST — Fixed ret2win local-verify semantics for recon-only no-gdb/no-codex exploit passes
+
+### What changed
+
+- Patched `core/plugins/exploit_l3.py` so generated local exploit stubs no longer require a post-exploit shell marker as the only successful verify outcome.
+- Added a lightweight success-marker bridge for banner-style wins:
+  - `_verify_success_markers()` derives a small banner token set from the generated strategy/reasons
+  - `_has_success_marker()` recognizes ret2win/banner output such as `DIRGE_RET2WIN_OK`
+  - `_verify_shell(io, preflight_data=...)` now accepts success observed in pre-shell output, or in merged preflight+post-echo output, before demanding an interactive shell marker
+- Also fixed `_send_payload()` to return the full stage output window (including `drain_post_send` / clear-buffer data), because the ret2win success banner was often printed before the old return value captured anything.
+- Updated verify-mode offset bruteforce in the generated stub to pass that stage output into `_verify_shell(io, out)`.
+- Added regression coverage in `tests/test_exploit_l3.py` ensuring:
+  - generated ret2win stubs recognize banner success before shell verification
+  - generated verify-mode code actually passes preflight output into `_verify_shell(...)`
+
+### Why it mattered
+
+A fresh real stripped-PATH no-gdb/no-codex run had already improved recon/exploit generation correctly:
+- stage plan: `['recon', 'exploit_l3']`
+- exploit strategy: `ret2win`
+- static offset hint: `72`
+- ret2win symbol/address present
+
+But the live exploit still failed local verify with a timeout-only false negative.
+The root cause was that verify-mode bounded offset probing treated success as “shell marker or bust”, while `bench_ret2win` is a classic banner-style ret2win that:
+- prints `DIRGE_RET2WIN_OK`
+- exits cleanly via `_exit(0)`
+- never produces `__PWN_VERIFY_OK__`
+
+So the exploit was actually succeeding, but verify kept iterating offsets until the outer timeout expired.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_run_session_missing_codex.py -q` → `38 passed`
+- Manual spot-check of the generated ret2win stub:
+  - plain local run prints `bye` + `DIRGE_RET2WIN_OK`
+- Fresh real stripped-PATH runtime validation (symlink-farm PATH with binutils preserved, `gdb`/`gdb-mcp`/`codex` absent) against `challenge/bench_ret2win` now shows:
+  - stage plan: `['recon', 'exploit_l3']`
+  - `session.exp.strategy = 'ret2win'`
+  - `session.exp.local_verify_passed = true`
+  - `capabilities.exploit_success = true`
+  - `session.status = 'finished'`
+
+### Current interpretation
+
+The real no-gdb/no-codex ret2win path is now green in a more honest way:
+- recon cache reuse preserves ret2win/static offset facts
+- `exploit_l3` generation selects a real ret2win plan instead of regressing to `fuzz_probe`
+- local verify now accepts legitimate banner-style exploit success rather than forcing a shell-only contract
+
+This strengthens both supported runtime entries:
+- OpenClaw can execute the degraded recon-only ret2win path directly
+- host-side Codex CLI retains the same shared exploit/verify core without requiring a Codex auth gate for this class of local benchmark progress
+
+### Remaining follow-up
+
+- Reduce reliance on bounded local verify/offset bruteforce for recon-only ret2win cases by promoting more deterministic offset/control contracts into the shared exploit plan when evidence exists.
+- Keep future benchmark additions focused on portable exploit outcome semantics (banner success, flag success, shell success) rather than overfitting verify to one interaction style.
+
+## 2026-03-13 12:29 CST — Revalidated ret2win exploit slices on both portable missing-Codex paths
+
+### What changed
+
+- Re-ran the focused verification slice after the exploit-verify/cache fixes landed, instead of trusting only the earlier ad-hoc stripped-PATH run.
+- Verified both benchmark-facing missing-Codex ret2win exploit routes that matter for dual-entry runtime support:
+  - local gdb fallback path
+  - direct PATH `gdb-mcp` probe path
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_run_session_missing_codex.py -q` → `38 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_local_ret2win_exploit` → case passes (`recon -> gdb_evidence -> exploit_l3`, `exp_verify_ok=true`)
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_direct_gdb_path_ret2win_exploit` → case passes (`recon -> gdb_evidence -> exploit_l3`, `gdb.mode=gdb_direct_probe`, `exp_verify_ok=true`)
+
+### Why it mattered
+
+The earlier fixes were already promising, but this rerun matters because it reconfirms the shared exploit/verify core on both supported entry styles:
+- OpenClaw-compatible local-gdb flow is still green
+- host-like direct-gdb/MCP adapter flow is also still green
+
+So the current tree is not merely "fixed for one degraded path"; the portable ret2win exploit contract is holding across both runtime-adapter shapes.
+
+### Current next seam
+
+- The main remaining weakness is still determinism, not outright success:
+  - current ret2win success can still depend on bounded local verify/offset bruteforce when `offset_to_rip` is not promoted cleanly enough
+- Next high-value work should focus on promoting stronger shared offset/control facts into exploit planning, rather than doing more generic runtime/plumbing cleanup.
