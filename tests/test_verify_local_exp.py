@@ -66,5 +66,27 @@ class VerifyLocalExpAutoOffsetTests(unittest.TestCase):
         self.assertEqual(parsed, {})
 
 
+class VerifyLocalExpRopTemplateHitTests(unittest.TestCase):
+    def test_extract_rop_template_hit_parses_numeric_template_choice(self):
+        run_detail = {
+            "stdout_tail": "noise\n[rop-template] hit=2/3 order=1\nmore",
+            "stderr_tail": "",
+        }
+
+        parsed = verify_local_exp._extract_rop_template_hit(run_detail)
+
+        self.assertEqual(parsed, {"template_idx": 2, "template_count": 3, "order": 1})
+
+    def test_extract_rop_template_hit_ignores_old_literal_placeholder_output(self):
+        run_detail = {
+            "stdout_tail": "[rop-template] hit={idx}/{len(payloads)}",
+            "stderr_tail": "",
+        }
+
+        parsed = verify_local_exp._extract_rop_template_hit(run_detail)
+
+        self.assertEqual(parsed, {})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -320,6 +320,37 @@ def _extract_auto_offset_hit(run_detail: Dict[str, Any]) -> Dict[str, int]:
     return out
 
 
+def _extract_rop_template_hit(run_detail: Dict[str, Any]) -> Dict[str, int]:
+    merged = f"{run_detail.get('stdout_tail','')}\n{run_detail.get('stderr_tail','')}"
+    matches = re.findall(
+        r"\[rop-template\]\s+hit=(0x[0-9a-fA-F]+|\d+)/(0x[0-9a-fA-F]+|\d+)(?:\s+order=(0x[0-9a-fA-F]+|\d+))?",
+        merged,
+    )
+    if not matches:
+        return {}
+    hit_raw, total_raw, order_raw = matches[-1]
+    out: Dict[str, int] = {}
+    try:
+        hit = int(str(hit_raw), 0)
+    except Exception:
+        hit = 0
+    try:
+        total = int(str(total_raw), 0)
+    except Exception:
+        total = 0
+    try:
+        order = int(str(order_raw), 0) if str(order_raw or "").strip() else 0
+    except Exception:
+        order = 0
+    if hit > 0:
+        out["template_idx"] = int(hit)
+    if total > 0:
+        out["template_count"] = int(total)
+    if order > 0:
+        out["order"] = int(order)
+    return out
+
+
 def _sync_state_meta(session_id: str, state_path: str) -> Dict[str, Any]:
     sid = str(session_id or "").strip()
     if not sid or sid == "unknown":
@@ -897,6 +928,9 @@ def main() -> int:
     auto_offset_hit = _extract_auto_offset_hit(run_detail) if args.run else {}
     if auto_offset_hit:
         run_detail["auto_offset_hit"] = auto_offset_hit
+    rop_template_hit = _extract_rop_template_hit(run_detail) if args.run else {}
+    if rop_template_hit:
+        run_detail["rop_template_hit"] = rop_template_hit
 
     report = {
         "generated_utc": utc_now(),
@@ -917,6 +951,7 @@ def main() -> int:
         "run": run_detail,
         "run_env_defaults": run_env_defaults,
         "auto_offset_hit": auto_offset_hit,
+        "rop_template_hit": rop_template_hit,
     }
     state_meta_sync: Dict[str, Any] = {"attempted": False, "ok": False}
     with open(report_abs, "w", encoding="utf-8") as f:
@@ -942,6 +977,9 @@ def main() -> int:
                     exp["selected_offset"] = int(hit_off)
                 if "align_ret" in auto_offset_hit:
                     exp["selected_align_ret"] = int(auto_offset_hit.get("align_ret", 0) or 0)
+                template_idx = int(rop_template_hit.get("template_idx", 0) or 0)
+                if template_idx > 0:
+                    exp["selected_rop_template_idx"] = int(template_idx)
         latest = state.setdefault("artifacts_index", {}).setdefault("latest", {}).setdefault("paths", {})
         latest["exp_verify_report"] = repo_rel(report_abs)
         save_json(args.state, state)

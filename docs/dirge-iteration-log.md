@@ -502,3 +502,127 @@ This closes the specific rerun-proof gap called out in the last iteration:
 
 - Move from ret2win-specific deterministic fact retention toward other exploit families where verify learns reusable runtime choices.
 - Look for the next real challenge-like seam where shared evidence can be promoted into exploit planning before bounded verify/bruteforce is needed.
+
+## 2026-03-13 15:29 CST — Extended verify-learned auto-offset retention to direct_execve_shell stubs
+
+### What changed
+
+- Fixed the generated `direct_execve_shell` verify-mode template in `core/plugins/exploit_l3.py` so successful auto-offset discovery now prints real values:
+  - before: `print(f"[auto-offset] hit={{off}} align={{int(bool(align))}}")`
+  - after: `print(f"[auto-offset] hit={off} align={int(bool(align))}")`
+- Added focused regression coverage in `tests/test_exploit_l3.py` proving the generated `direct_execve_shell` stub now emits the same parseable auto-offset line shape already used by the ret2win path.
+
+### Why it mattered
+
+The previous iterations had already taught the shared verify/report/sync pipeline to preserve deterministic ret2win facts learned during bounded local verify.
+But one nearby exploit family still had a silent portability/determinism gap:
+- `direct_execve_shell` also does verify-time offset scanning when `OFFSET_TO_RIP` is unknown
+- `verify_local_exp.py` already knows how to parse `[auto-offset] hit=<n> align=<0|1>`
+- yet the generated stub printed literal braces instead of numeric values, so any successful discovered offset could not flow into verify reports or back into session state
+
+That meant the shared reuse pipeline was stronger for ret2win than for another RIP-control exploit family that should benefit from the same contract across both OpenClaw and host-style Codex entry paths.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q` → `15 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit` → passes after the shared-template fix (regression guard on the already-green stripped-tool route)
+
+### Current interpretation
+
+This is a small change, but it pushes the deterministic-fact retention contract one step beyond ret2win-specific plumbing:
+- direct execve-style RIP-control templates can now emit parseable verify-learned offset/alignment facts
+- the existing shared verify/report/state-sync machinery is positioned to preserve those facts without adding an OpenClaw-only or Codex-only fork
+- the remaining gap is now less about string-format bugs and more about finding the next real benchmark/challenge slice where non-ret2win exploit families can prove the same end-to-end reuse contract
+
+### Remaining follow-up
+
+- Add a benchmarkable or scripted proof for a non-ret2win exploit family (likely direct-execve or ret2libc-oriented) that demonstrates discovered verify-time runtime facts survive into a useful rerun path.
+- Continue promoting reusable exploit facts through the shared core rather than adding runtime-specific fallback behavior.
+
+## 2026-03-13 16:08 CST — Extended verify-learned rerun determinism from ret2win offsets to ret2libc template choice
+
+### What changed
+
+- Extended the shared verify/report/state-sync pipeline so a successful ret2libc verify run can now preserve which stage-2 ROP template actually worked.
+- `scripts/verify_local_exp.py` now parses runtime lines of the form:
+  - `[rop-template] hit=<idx>/<count> order=<n>`
+  and records that as `rop_template_hit` in both the verify report and `run_detail`.
+- `scripts/session_exploit_runtime.py::sync_exp_verify_artifacts()` now syncs that portable fact back into the owning session as:
+  - `session.exp.selected_rop_template_idx`
+- `core/plugins/exploit_l3.py` now carries that shared session fact into generated stubs as:
+  - `SELECTED_ROP_TEMPLATE_IDX`
+  and uses it to prefer the known-good ret2libc payload ordering on rerun instead of always reopening from payload #1.
+- Also fixed two nearby evidence-quality bugs in the ret2libc template body:
+  - `[rop-template] hit=...` now prints real numeric values instead of literal braces
+  - libc profile source strings now emit `profile:<name>` instead of the stale literal `profile:{name}`
+
+### Why it mattered
+
+The previous iterations had already made ret2win/direct-execve reruns more deterministic by preserving auto-discovered offset/alignment facts from local verify.
+But ret2libc still had a nearby shared-core gap:
+
+- a verify run could discover that payload template #2 or #3 worked,
+- yet the useful choice was not preserved across the verify-report/sync boundary,
+- and the next generated stub would still default back to the first template.
+
+That was wasteful and made non-ret2win reruns less transferable across both supported runtime entries.
+This cycle moves the same general contract one step wider without adding an OpenClaw-only or Codex-only fork.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q` → `20 passed`
+- Added focused regression coverage proving:
+  - ret2libc generated stubs emit parseable `[rop-template] hit=2/3 order=1`-style output
+  - verify parsing ignores the old literal-brace placeholder form
+  - synced `selected_rop_template_idx` survives a foreign-shared-state scenario
+  - regenerated ret2libc stubs reuse that synced template preference via `_selected_payload_order()`
+
+### Current interpretation
+
+This is a modest but real solve-facing determinism improvement in the shared exploit core:
+
+- it broadens reusable verify-learned facts beyond ret2win-only offset/alignment retention,
+- improves evidence readability for ret2libc runs,
+- and keeps the behavior portable across OpenClaw and host-side Codex CLI entry shapes.
+
+### Remaining follow-up
+
+- Add a benchmarkable or scripted non-ret2win exploit slice that exercises the new ret2libc template-preference reuse end-to-end, rather than proving it only through focused integration tests.
+- Keep looking for other exploit families where local verify learns stable runtime choices that should become first-class shared session facts.
+
+## 2026-03-13 16:32 CST — Closed this cycle with green validation; next gap remains a real non-ret2libc replay slice
+
+### What changed
+
+- No additional core logic changes were needed after the ret2libc template-choice work.
+- This cycle focused on validating and tightening the landing zone for the already-staged shared-core changes in:
+  - `core/plugins/exploit_l3.py`
+  - `scripts/verify_local_exp.py`
+  - `scripts/session_exploit_runtime.py`
+- The main goal was to confirm the new verify-learned fact retention work did not regress the currently important no-Codex/no-gdb ret2win path while the repo still lacks a true replay-enforced non-ret2libc exploit slice.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q` → `20 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit` → passes
+
+### Why it mattered
+
+The ret2libc rerun-determinism improvement is shared-core work, but right now the repository still has stronger replay coverage for ret2win than for non-ret2libc exploit families.
+Before stacking more changes on top, it was useful to prove two things:
+
+- the shared verify/report/sync edits are green in focused integration coverage
+- the strongest stripped-tool portability benchmark (`demo_nogdb_nocodex_ret2win_exploit`) still stays green after the exploit-core changes
+
+That keeps the current branch honest: solve-facing determinism improved, and the already-hard-won portable no-Codex/no-gdb ret2win route did not regress.
+
+### Current interpretation
+
+- This cycle was a deliberate validation/containment pass, not a new benchmark expansion pass.
+- The shared exploit core is in a better state than before for carrying forward verify-discovered runtime facts.
+- The next valuable move is still to find or build a replayable non-ret2libc exploit slice that can prove the same end-to-end reuse contract under a real challenge-like run, rather than only via focused tests.
+
+### Remaining follow-up
+
+- Add a real challenge-like replay or scripted harness for a non-ret2libc exploit family (ret2libc or direct-execve are the most obvious candidates).
+- Prefer a fixture/session seed that already reaches exploit generation, so the next cycle spends effort on evidence/verify reuse rather than re-opening broad planner/runtime plumbing.

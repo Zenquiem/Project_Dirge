@@ -147,7 +147,13 @@ Clarification guardrail:
 - The next valuable follow-up is to reduce remaining dependence on bounded local verify/bruteforce for recon-only ret2win cases by promoting more deterministic offset/control contracts from shared recon/gdb evidence into the exploit plan when available.
 - Local verify now also persists a real discovered ret2win auto-hit (`offset_to_rip`, align mode) back into verify reports/session state instead of discarding it, and exploit stub regeneration now consumes persisted `session.exp.selected_offset` / `selected_align_ret` when capability state is sparse so rerun templates can stay on the proven branch instead of re-scanning candidate offsets/alignment blindly.
 - The previous same-session rerun proof gap is now closed: verify-report sync no longer drops `auto_offset_hit` facts when the owning session is reconstructed from a foreign shared state + base snapshot, and regenerated ret2win stubs now deterministically reuse the synced `selected_offset` / `selected_align_ret` branch.
+- The previous ret2win-only determinism seam is now partially broadened: ret2libc stubs can persist and reuse a verify-proven `selected_rop_template_idx`, so reruns need not always reopen stage-2 payload selection from template #1.
+- The previous ret2win-only determinism seam is now partially broadened: ret2libc stubs can persist and reuse a verify-proven `selected_rop_template_idx`, so reruns need not always reopen stage-2 payload selection from template #1.
+- Fresh focused validation after that change is green:
+  - `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q`
+  - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit`
 - The next seam in that area is broader rather than ret2win-specific: extend the same “verify learns deterministic runtime facts, sync preserves them, regenerated stubs reuse them” contract to other exploit families where local verify discovers stable choices.
+- The clearest remaining gap is still benchmark-facing: the repo needs a real challenge-like replay or scripted proof for a non-ret2libc exploit family, not just focused unit/integration coverage.
 
 ## Update Rule
 When priorities materially change, update this file in a small, direct way.
