@@ -420,6 +420,68 @@ This is not a giant solve-engine change, but it meaningfully improves exploit de
 - Re-run a stronger ret2win slice that exercises a second pass/rerun on the same session and confirm it now prefers the persisted `offset_to_rip` path over verify-time scanning.
 - If that holds, extend the same “capture discovered exploit facts instead of discarding them” pattern to other exploit families where local verify learns deterministic runtime facts.
 
+## 2026-03-13 17:02 CST — Added a real replayable direct-execve exploit slice and fixed two shared non-ret2win seams
+
+### What changed
+
+- Added a new challenge-like local fixture under `challenge/bench_direct_execve/`:
+  - non-PIE amd64 overflow binary
+  - real helper target `run_cmd_execve()` that calls `execve("/bin/sh", ...)`
+  - seeded crash input `cyclic88.txt`
+  - short README documenting that this is meant to exercise the shared `direct_execve_shell` path rather than another ret2win-only proof
+- Added a new replay case `benchmarks/cases/demo_local_direct_execve_exploit.json`.
+  - It asserts the portable missing-Codex path stays `recon -> gdb_evidence -> exploit_l3`
+  - It requires `session.exp.strategy = direct_execve_shell`
+  - It requires successful local verify / `capabilities.exploit_success = true`
+- Tightened shared exploit-family routing in `core/exploit_strategy.py`.
+  - Before this change, an execve-like helper symbol plus clean RIP control still fell through too easily unless the binary also exposed extra `/bin/sh`/`int 0x80`-style hints.
+  - The shared strategy picker now treats `execve`-like target symbols + proven RIP control as sufficient to prefer `direct_execve_shell` with lower confidence, instead of collapsing back to `rip_control_probe`.
+- Tightened shared direct-execve stub target selection in `core/plugins/exploit_l3.py`.
+  - Before this change, generated direct-execve stubs only looked for a narrow hard-coded symbol set like `execve`, `get_shell`, `win`, etc.
+  - That missed realistic helper names such as `run_cmd_execve`, so the strategy could be correct while the generated stub still had no usable target and local verify failed.
+  - The stub now falls back to any symbol whose name contains `execve` or ends in `shell` / `_shell` when the explicit symbol list misses.
+- Added focused regression coverage:
+  - `tests/test_exploit_strategy.py` proves execve-like helper symbols with RIP control select `direct_execve_shell`
+  - `tests/test_exploit_l3.py` proves the generated direct-execve stub can pick an execve-like helper symbol name outside the older fixed allowlist
+
+### Notable failure trail
+
+- The first fixture attempt used a 72-byte seeded file and `gdb_evidence` exited normally; that was a real benchmark-design mistake, because 72 bytes only reached saved RBP on this frame shape and did not actually corrupt RIP.
+- After switching the seeded crash input to `cyclic88.txt`, `gdb_evidence` recovered `offset_to_rip = 72` correctly, but `exploit_l3` still failed for two more concrete reasons:
+  1. strategy routing degraded to `rip_control_probe` because execve hints were under-weighted
+  2. after fixing routing, the direct-execve stub still failed to locate `run_cmd_execve`
+- Keeping those failures in the loop mattered because they exposed two shared-core seams rather than a benchmark-only issue:
+  - exploit-family classification was too ret2win-/shell-name-biased
+  - direct-execve target selection was too dependent on a tiny fixed symbol vocabulary
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_strategy.py tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q` → passes (`23 passed`)
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_local_direct_execve_exploit` → passes
+  - stage sequence: `['recon', 'gdb_evidence', 'exploit_l3']`
+  - `recon.mode = 'local_recon_fallback'`
+  - `gdb.mode = 'local_gdb_fallback'`
+  - `capabilities.offset_to_rip = 72`
+  - `session.exp.strategy = 'direct_execve_shell'`
+  - `session.exp.local_verify_passed = true`
+  - `capabilities.exploit_success = true`
+
+### Why it mattered
+
+This closes the previously explicit benchmark gap around non-ret2win/non-ret2libc exploit proof.
+Project_Dirge now has a replayable challenge-like slice proving that the shared portable core can:
+- recover RIP control via local gdb fallback in a missing-Codex run
+- classify the exploit family as direct-execve rather than generic probe/ret2win
+- generate a usable helper-target exploit stub
+- complete local shell verification through the shared `exploit_l3` path
+
+That moves the project one step closer to a real dual-entry runtime contract where both OpenClaw and host-side Codex CLI can drive the same solve core without hard-coding success around only ret2win fixtures.
+
+### Current follow-up
+
+- Add a similarly replayable multi-stage exploit slice (likely leak + ret2libc or equivalent) so the benchmark matrix covers at least one family beyond single-hop ret2win/direct-execve control-flow redirection.
+- Audit whether generic `shell` substring bias still leaks into other strategy branches now that the execve-family path is stronger.
+
 ## 2026-03-13 13:58 CST — Made rerun exploit stubs consume persisted ret2win offset/alignment facts
 
 ### What changed
@@ -626,3 +688,47 @@ That keeps the current branch honest: solve-facing determinism improved, and the
 
 - Add a real challenge-like replay or scripted harness for a non-ret2libc exploit family (ret2libc or direct-execve are the most obvious candidates).
 - Prefer a fixture/session seed that already reaches exploit generation, so the next cycle spends effort on evidence/verify reuse rather than re-opening broad planner/runtime plumbing.
+
+## 2026-03-13 17:32 CST — Baseline-enforced the new direct-execve slice and refreshed the full replay gate
+
+### What changed
+
+- Took the already-green `challenge/bench_direct_execve` + `demo_local_direct_execve_exploit` path from “targeted proof” to full benchmark baseline coverage.
+- Refreshed `benchmarks/baseline/latest.json` from a fresh full replay run so the new non-ret2win slice is part of the checked regression surface instead of living only in focused logs/tests.
+- Kept the shared-core focus narrow: this cycle did not add more exploit logic, it locked in the previous direct-execve work as a first-class regression contract.
+
+### Verification
+
+- `python3 -m pytest tests/test_exploit_strategy.py tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q` → `22 passed`
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_local_direct_execve_exploit` → passes
+- `python3 scripts/replay_benchmarks.py --allow-codex-missing --gate --write-baseline benchmarks/baseline/latest.json` → passes
+  - fresh scoreboard: `30 total / 29 executed / 1 skipped`
+  - `exploit_success_total = 5`
+  - `demo_local_direct_execve_exploit` now lives inside the refreshed baseline
+
+### Why it mattered
+
+The direct-execve work from the previous cycle was valuable, but until it was in the full replay baseline it still had a soft spot:
+- targeted replay could stay green,
+- while a later broad refresh could accidentally omit or drift the case without immediately surfacing it.
+
+This cycle closes that gap.
+Project_Dirge now has a baseline-enforced non-ret2win exploit slice in the normal replay gate, which is a better fit for the project charter:
+- benchmark-facing,
+- challenge-like,
+- portable across OpenClaw and host-side Codex-style entry paths,
+- and not dependent on OpenClaw-only behavior.
+
+### Current interpretation
+
+- The project now has replay-enforced exploit proofs across three distinct portable classes:
+  - stripped-tool recon-only ret2win
+  - local/direct-gdb ret2win
+  - local-gdb direct-execve
+- That is a healthier benchmark surface than the earlier ret2win-heavy matrix.
+- The next meaningful family gap is no longer “any non-ret2win proof exists?” but specifically “where is the replayable multi-stage leak/ret2libc proof?”
+
+### Remaining follow-up
+
+- Build a real challenge-like ret2libc or comparable multi-stage leak benchmark slice, ideally one that can eventually prove verify-learned template choice reuse end-to-end rather than only in focused tests.
+- Prefer improvements that move leak acquisition / libc-closure / stage-2 payload selection forward in the shared core, instead of adding more benchmark-only scaffolding.

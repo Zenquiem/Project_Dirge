@@ -153,7 +153,9 @@ Clarification guardrail:
   - `python3 -m pytest tests/test_exploit_l3.py tests/test_verify_local_exp.py tests/test_session_exploit_runtime.py -q`
   - `python3 scripts/replay_benchmarks.py --allow-codex-missing --only demo_nogdb_nocodex_ret2win_exploit`
 - The next seam in that area is broader rather than ret2win-specific: extend the same “verify learns deterministic runtime facts, sync preserves them, regenerated stubs reuse them” contract to other exploit families where local verify discovers stable choices.
-- The clearest remaining gap is still benchmark-facing: the repo needs a real challenge-like replay or scripted proof for a non-ret2libc exploit family, not just focused unit/integration coverage.
+- The earlier benchmark-facing gap around a real non-ret2win/non-ret2libc replayable exploit slice is now closed by `challenge/bench_direct_execve` + `demo_local_direct_execve_exploit`; the shared no-Codex path now has a green `recon -> gdb_evidence -> exploit_l3` proof for `strategy=direct_execve_shell` with successful local verify.
+- That new direct-execve slice is now baseline-enforced too: fresh full replay on 2026-03-13 is green again at `30 total / 29 executed / 1 skipped`, so the non-ret2win proof is no longer just a targeted spot-check.
+- The next broader exploit-family gap is to push the same replayable proof style into a leak/ret2libc or comparable multi-stage family, so the portable runtime core is exercised on more than single-hop control-flow redirection cases.
 
 ## Update Rule
 When priorities materially change, update this file in a small, direct way.

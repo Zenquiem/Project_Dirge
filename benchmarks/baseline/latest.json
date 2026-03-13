@@ -1,19 +1,19 @@
 {
-  "generated_utc": "2026-03-13T01:13:03Z",
-  "source_report": "artifacts/reports/benchmark_replay_20260313T011107Z.json",
+  "generated_utc": "2026-03-13T09:32:25Z",
+  "source_report": "artifacts/reports/benchmark_replay_20260313T093031Z.json",
   "scoreboard": {
-    "cases_total": 28,
-    "cases_executed": 27,
+    "cases_total": 30,
+    "cases_executed": 29,
     "cases_skipped": 1,
-    "cases_ok": 27,
+    "cases_ok": 29,
     "cases_failed": 0,
     "success_rate": 1.0,
     "codex_errors_total": 0,
     "stage_retries_total": 0,
     "recoverable_failures_total": 0,
-    "capability_updates_total": 30,
-    "exploit_success_total": 3,
-    "objective_score_avg": 67.14814814814815
+    "capability_updates_total": 35,
+    "exploit_success_total": 5,
+    "objective_score_avg": 68.44827586206897
   },
   "cases": [
     {
@@ -1075,6 +1075,92 @@
       ]
     },
     {
+      "case_id": "demo_local_direct_execve_exploit",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_direct_execve",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_LOCAL_GDB_STDIN_FILE": "challenge/bench_direct_execve/cyclic88.txt",
+          "DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING": "1"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "required_success_stages": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "stage_sequence": [
+            "recon",
+            "gdb_evidence",
+            "exploit_l3"
+          ],
+          "metrics_min": {
+            "runs_total": 1,
+            "exploit_success": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "gdb.mode": "local_gdb_fallback",
+            "gdb.stdin_source": "file:challenge/bench_direct_execve/cyclic88.txt",
+            "gdb.stdin_kind": "seeded_file",
+            "capabilities.has_crash": true,
+            "capabilities.control_rip": true,
+            "capabilities.offset_to_rip": 72,
+            "session.exp.strategy": "direct_execve_shell",
+            "session.exp.local_verify_passed": true,
+            "capabilities.exploit_success": true
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local gdb evidence + local exploit plugin",
+            "local exploit plugin: on"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "gdb",
+          "nm",
+          "objdump",
+          "strings"
+        ]
+      },
+      "case_contract_hash": "64a1f1e2b370c24db5d67286cf6bcaac92416899392a7ac0e9825404957fc813",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "exploit_l3",
+        "gdb_evidence",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "gdb_evidence",
+        "exploit_l3"
+      ]
+    },
+    {
       "case_id": "demo_local_file_nonpie",
       "ok": true,
       "run_rc": 0,
@@ -2115,6 +2201,90 @@
       "stage_sequence": [
         "recon",
         "gdb_evidence"
+      ]
+    },
+    {
+      "case_id": "demo_nogdb_nocodex_ret2win_exploit",
+      "ok": true,
+      "run_rc": 0,
+      "case_contract": {
+        "challenge_dir": "challenge/bench_ret2win",
+        "binary": "chall",
+        "max_loops": 1,
+        "allow_codex_missing": true,
+        "start_no_codex": true,
+        "start_session_args": [],
+        "run_session_args": [],
+        "env": {
+          "DIRGE_PREFER_LOCAL_GDB_ON_CODEX_MISSING": "1",
+          "DIRGE_ALLOW_LOCAL_EXP_ON_CODEX_MISSING": "1"
+        },
+        "expect": {
+          "run_rc": 0,
+          "final_exit_code": 0,
+          "acceptance_passed": true,
+          "forbid_stage_cache_hits": [
+            "recon",
+            "exploit_l3"
+          ],
+          "required_success_stages": [
+            "recon",
+            "exploit_l3"
+          ],
+          "stage_sequence": [
+            "recon",
+            "exploit_l3"
+          ],
+          "metrics_min": {
+            "runs_total": 1,
+            "exploit_success": 1
+          },
+          "state_paths": {
+            "session.status": "finished",
+            "recon.mode": "local_recon_fallback",
+            "session.exp.strategy": "ret2win",
+            "session.exp.local_verify_passed": true,
+            "capabilities.static_offset_candidate": 72,
+            "capabilities.ret2win_path_verified": true,
+            "capabilities.exploit_success": true
+          },
+          "notes_contains": [
+            "codex missing: prefer portable local recon + local exploit plugin",
+            "direct gdb probe: off",
+            "gdb evidence unavailable: exploit after recon",
+            "local exploit plugin: on"
+          ],
+          "notes_absent": [
+            "OpenClaw-specific fallback"
+          ]
+        },
+        "ensure_binary_executable": true,
+        "clear_cached_artifacts": true,
+        "start_timeout_seconds": null,
+        "run_timeout_seconds": null,
+        "required_commands": [
+          "nm",
+          "objdump",
+          "readelf",
+          "strings",
+          "file"
+        ],
+        "path_block_commands": [
+          "gdb",
+          "gdb-mcp",
+          "codex"
+        ]
+      },
+      "case_contract_hash": "eea80be9fab102e76377420cd52a07d4353270684e2243c936ed69f97ac57a04",
+      "final_exit_code": 0,
+      "acceptance_passed": true,
+      "success_stages": [
+        "exploit_l3",
+        "recon"
+      ],
+      "stage_sequence": [
+        "recon",
+        "exploit_l3"
       ]
     }
   ]
